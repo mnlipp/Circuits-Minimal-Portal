@@ -20,7 +20,7 @@
 """
 import tenjin
 import os
-from mipypo.core.portlet import Portlet
+from circuits_minpor import Portlet
 
 
 class CorePortlet(Portlet):

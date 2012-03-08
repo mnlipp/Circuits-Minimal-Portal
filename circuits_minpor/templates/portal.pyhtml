@@ -16,7 +16,7 @@
   <?py     selected=tab ?>
   <?py   #endif ?>
 <span class="{= "tab" + (" activeTab" if tab.selected else "") 
-             + (" closableTab" if tab.closeable else "") =}"><a class="tabLabel" href="?tab={= id(tab) =}&action=select">{= tab.label =}</a><a class="tabCloser" href="?tab={= id(tab) =}&action=close"><img src="theme-resource/close-tab-active.png"></a></span><?py #endfor ?>
+             + (" closableTab" if tab.closeable else "") =}"><a class="tabLabel" href="?tab={= id(tab) =}&action=select">{= _(tab.label) =}</a><a class="tabCloser" href="?tab={= id(tab) =}&action=close"><img src="theme-resource/close-tab-active.png"></a></span><?py #endfor ?>
   </div>
   <div class="page">
     <?py include(selected.content_renderer + ".pyhtml", tab=selected, 

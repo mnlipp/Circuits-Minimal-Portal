@@ -35,7 +35,7 @@ class BaseControllerExt(BaseController):
 
     def serve_tenjin(self, request, response, path, context, 
                      type=None, disposition=None, name=None,
-                     engine=None):
+                     engine=None, globexts=None):
         if not engine and not os.path.isabs(path):
             raise ValueError("'%s' is not an absolute path." % path)
 
@@ -56,8 +56,16 @@ class BaseControllerExt(BaseController):
             cd = '%s; filename="%s"' % (disposition, name)
             response.headers["Content-Disposition"] = cd
 
+        if globexts:
+            globs = tenjin.helpers.__dict__.copy()
+            globs.update(globexts)
+        else:
+            globs = tenjin.helpers.__dict__
+        #tenjin.helpers.
+
         try:
-            response.body = (engine or self.engine).render(path, context)
+            response.body = (engine or self.engine) \
+                .render(path, context, globals = globs)
         except Exception as error:
             etype, evalue, etraceback = sys.exc_info()
             error = (etype, evalue, traceback.format_tb(etraceback))

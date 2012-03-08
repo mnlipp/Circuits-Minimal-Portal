@@ -26,15 +26,19 @@ from circuits.core.handlers import handler
 import tenjin
 from copy import copy
 import uuid
-from circuits_bricks.web.dispatchers.dispatcher import ScopeDispatcher,\
-    ScopedChannel
 from circuits_minpor.portlet import Portlet
 from circuits_minpor.utils import BaseControllerExt
-
+from circuits_bricks.web.dispatchers.dispatcher import HostDispatcher
+from circuits_bricks.web.filters import LanguagePreferences, ThemeSelection
+from circuits.web.sessions import Sessions
+import threading
+from rbtranslations import Translations, translation
 
 class Portal(BaseComponent):
 
     channel = "mipypo"
+    _thread_data = threading.local()
+    _themes_dir = os.path.join(os.path.dirname(__file__), "templates", "themes")
 
     def __init__(self, server=None, prefix=None, 
                  portal_title=None, templates_dir=None, **kwargs):
@@ -45,14 +49,26 @@ class Portal(BaseComponent):
         else:
             self.channel = server.channel
         self.server = server
-        dispatcher = ScopeDispatcher(channel = server.channel).register(server)
-        _Root(self,
-              channel=ScopedChannel(server.channel, prefix if prefix else "/"),
-              portal_title=portal_title,
-              templates_dir=templates_dir) \
+        Sessions(channel = server.channel, 
+                 name="mipypo.session").register(server)
+        LanguagePreferences(channel = server.channel).register(server)
+        ThemeSelection(channel = server.channel).register(server)
+        dispatcher = HostDispatcher(channel = server.channel).register(server)
+        _Root(self, host = server.channel,
+              channel = prefix if prefix else "/",
+              portal_title = portal_title,
+              templates_dir = templates_dir) \
               .register(dispatcher)
             
         self._tabs = [_TabInfo("Overview", "_dashboard", selected=True)]
+        
+    @classmethod
+    def translate(cls, text):
+        trans = translation("l10n", 
+                            os.path.join(cls._themes_dir, 
+                                         ThemeSelection.selected()),
+                                         LanguagePreferences.preferred())
+        return trans.ugettext(text)
         
     @handler("registered")
     def _on_registered(self, c, m):
@@ -76,8 +92,12 @@ class Portal(BaseComponent):
     def tabs(self):
         return copy(getattr(self, "_tabs", None))
 
+    @property
+    def theme(self):
+        return getattr(self, "_theme", "default")
+
     def select_tab(self, tab_id):
-        for i, tab in enumerate(self._tabs):
+        for tab in self._tabs:
             tab._selected = (id(tab) == tab_id)
 
     def close_tab(self, tab_id):
@@ -111,6 +131,9 @@ class Portal(BaseComponent):
         self._tabs.append(tab)
         self.select_tab(id(tab))
 
+_ = Portal.translate
+
+
 class _TabInfo(object):
     
     def __init__(self, label, renderer, selected = False, closeable=False,
@@ -141,6 +164,7 @@ class _TabInfo(object):
     def portlet(self):
         return self._portlet
 
+
 class _Root(BaseControllerExt):
 
     _docroot = os.path.abspath(os.path.join(os.path.dirname(__file__),
@@ -148,6 +172,7 @@ class _Root(BaseControllerExt):
     
     def __init__(self, portal, **kwargs):
         super(_Root, self).__init__(**kwargs)
+        self.host = kwargs.get("host", None)
         self._portal = portal
         path=[self._docroot]
         self._templates_override = kwargs.get("templates_dir", None)
@@ -155,7 +180,7 @@ class _Root(BaseControllerExt):
             path.append(self._templates_override)
         self.engine = tenjin.Engine(path=path)
     
-    @expose("index")
+    @expose("index", filter=True)
     def index(self, *args, **kwargs):
         if len(args) > 0:
             return
@@ -171,15 +196,17 @@ class _Root(BaseControllerExt):
         context["locales"] = ["en_US"]
         return self.serve_tenjin \
             (self.request, self.response, "portal.pyhtml", context,
-             engine=self.engine, type="text/html")
+             engine=self.engine, type="text/html", 
+             globexts = { "_": _ })
 
     @expose("theme-resource")
     def theme_resource(self, resource):
         if self._templates_override:
             f = os.path.join(self._templates_override, 
-                             "themes/default", resource)
+                             "themes", self._portal.theme, resource)
             if os.access(f, os.R_OK):
                 return self.serve_file (f)
-        f = os.path.join(self._docroot, "themes/default", resource)
+        f = os.path.join(self._docroot, 
+                         "themes", self._portal.theme, resource)
         return self.serve_file (f)
 

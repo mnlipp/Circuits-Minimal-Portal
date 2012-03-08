@@ -21,6 +21,7 @@
 from circuits.core.components import BaseComponent
 from abc import ABCMeta
 import uuid
+from circuits.web.errors import NotFound
 
 class Portlet(BaseComponent):
     
@@ -82,6 +83,14 @@ class Portlet(BaseComponent):
         def locale(self):
             return self._locale
 
+    class UrlGenerator(object):
+        
+        def actionUrl(self, event):
+            return "#"
+
+        def resourceUrl(self, resource):
+            return "#"
+
     def __init__(self, *args, **kwargs):
         super(Portlet, self).__init__(*args, **kwargs)
         self._handle = uuid.uuid4()
@@ -90,6 +99,10 @@ class Portlet(BaseComponent):
         return Portlet.Description(self._handle, "Base Portlet")
     
     def render(self, mode=RenderMode.View,
-               window_state=WindowState.Normal, locales=[]):
+               window_state=WindowState.Normal, locales=[],
+               urlGenerator=UrlGenerator()):
         return "<div class=\"portlet-msg-error\">" \
                 + "Portlet not implemented yet</div>"
+
+    def resource(self, request, response, resource):
+        return NotFound(request, response)
