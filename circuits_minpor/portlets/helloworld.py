@@ -25,8 +25,7 @@ class HelloWorldPortlet(Portlet):
     def description(self, locales=[]):
         return Portlet.Description(self._handle, "Hello World Portlet")
     
-    def render(self, mode=Portlet.RenderMode.View,
-               window_state=Portlet.WindowState.Normal, locales=[]):
+    def _do_render(self, mode, window_state, locales, urlGenerator):
         if window_state == Portlet.WindowState.Solo:
             return "<div style=\"padding: 1em; font-size: 400%\">Hello World!</div>"
         else:

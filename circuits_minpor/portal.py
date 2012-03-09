@@ -18,7 +18,8 @@
 
 .. moduleauthor:: mnl
 """
-from circuits.web import expose
+from circuits.web import expose, tools
+from circuits.web.events import Request
 from circuits.core.components import BaseComponent
 from circuits.web.servers import BaseServer
 import os
@@ -26,13 +27,16 @@ from circuits.core.handlers import handler
 import tenjin
 from copy import copy
 import uuid
-from circuits_minpor.portlet import Portlet
-from circuits_minpor.utils import BaseControllerExt
+from circuits_minpor.portlet import Portlet, RenderPortlet
+from circuits_minpor.utils import BaseControllerExt, serve_tenjin
 from circuits_bricks.web.dispatchers.dispatcher import HostDispatcher
 from circuits_bricks.web.filters import LanguagePreferences, ThemeSelection
 from circuits.web.sessions import Sessions
 import threading
-from rbtranslations import Translations, translation
+from rbtranslations import translation
+from circuits.web.utils import parse_qs, parse_body
+from circuits.core.events import Success
+from circuits.core.values import Value
 
 class Portal(BaseComponent):
 
@@ -53,12 +57,7 @@ class Portal(BaseComponent):
                  name="mipypo.session").register(server)
         LanguagePreferences(channel = server.channel).register(server)
         ThemeSelection(channel = server.channel).register(server)
-        dispatcher = HostDispatcher(channel = server.channel).register(server)
-        _Root(self, host = server.channel,
-              channel = prefix if prefix else "/",
-              portal_title = portal_title,
-              templates_dir = templates_dir) \
-              .register(dispatcher)
+        PortalDispatcher(self, channel = server.channel).register(server)
             
         self._tabs = [_TabInfo("Overview", "_dashboard", selected=True)]
         
@@ -70,7 +69,7 @@ class Portal(BaseComponent):
                                          LanguagePreferences.preferred())
         return trans.ugettext(text)
         
-    @handler("registered")
+    @handler("registered", channel="*")
     def _on_registered(self, c, m):
         if not isinstance(c, Portlet):
             return
@@ -165,13 +164,13 @@ class _TabInfo(object):
         return self._portlet
 
 
-class _Root(BaseControllerExt):
+class PortalDispatcher(BaseComponent):
 
     _docroot = os.path.abspath(os.path.join(os.path.dirname(__file__),
                                             "templates"))
-    
-    def __init__(self, portal, **kwargs):
-        super(_Root, self).__init__(**kwargs)
+
+    def __init__(self, portal, *args, **kwargs):
+        super(PortalDispatcher, self).__init__(*args, **kwargs)
         self.host = kwargs.get("host", None)
         self._portal = portal
         path=[self._docroot]
@@ -180,33 +179,83 @@ class _Root(BaseControllerExt):
             path.append(self._templates_override)
         self.engine = tenjin.Engine(path=path)
     
-    @expose("index", filter=True)
-    def index(self, *args, **kwargs):
-        if len(args) > 0:
+    @handler("request", filter=True, priority=0.1)
+    def _on_request(self, event, request, response, peer_cert=None):
+        if peer_cert:
+            event.peer_cert = peer_cert
+        event.kwargs = parse_qs(request.qs)
+        parse_body(request, response, event.kwargs)
+        # Is this a resource request?
+        if request.path.startswith("/theme-resource/"):
+            request.path = request.path[len("/theme-resource/"):]
+            return self._theme_resource (request, response)
+
+        # Perform requested actions
+        self._perform_actions(event.kwargs)
+        
+        if not request.path == "/":
             return
+        context = {}
+        context["portlets"] = self._portal.portlets
+        context["tabs"] = self._portal.tabs
+        context["locales"] = ["en_US"]
+        self._portlet_refs = 0
+        self._portlet_renderings = []
+        self._portlet_renderings_count = 0
+        def render(portlet, **kwargs):
+            self._portlet_refs += 1
+            evt = RenderPortlet(**kwargs)
+            evt.render_request = self._portlet_refs
+            evt.redirect_success = self.channel
+            self.fire(evt, portlet.channel)
+            return "&render_request_%04d;" % self._portlet_refs 
+        self._preliminary_response = serve_tenjin \
+            (self.engine, request, response, "portal.pyhtml", 
+             context, type="text/html", 
+             globexts = { "_": _ , "render": render})
+
+        # Really filter this event, including automatic success generation
+        event.success = False
+        self._request_event = event
+        return Value()
+
+    @handler("render_portlet_success")
+    def _render_portlet_success (self, e, *args, **kwargs):
+        slot = e.render_request - 1
+        if len(self._portlet_renderings) < slot + 1:
+            self._portlet_renderings += \
+                [None] * (slot - len(self._portlet_renderings) + 1)
+        self._portlet_renderings[slot] = e.value.value
+        self._portlet_renderings_count -= 1
+        if self._portlet_renderings_count > 0:
+            return
+        # Deliver result in value of original request
+        # Trigger processing of result
+        resp = ""
+        for part in self._preliminary_response.body[0] \
+            .split("&render_request_"):
+            if resp == "":
+                resp = part
+                continue
+            part_num = int(part[0:3])
+            resp += self._portlet_renderings[part_num]
+            resp += part[5:]
+        self._preliminary_response.body[0] = resp
+        self._request_event.value.value = self._preliminary_response
+        res_evt = Success.create("%sSuccess" % Request.__name__,
+                                 self._request_event, resp)
+        self.fire(res_evt, *self._request_event.channels)
+        return Value()
+    
+    def _theme_resource(self, request, response):
+        f = os.path.join(self._portal._themes_dir, 
+                         self._portal.theme, request.path)
+        return tools.serve_file(request, response, f)
+
+    def _perform_actions(self, kwargs):
         if kwargs.get("action") == "select":
             self._portal.select_tab(int(kwargs.get("tab")))
         elif kwargs.get("action") == "close":
             self._portal.close_tab(int(kwargs.get("tab")))
         elif kwargs.get("action") == "solo":
             self._portal.add_solo(uuid.UUID(kwargs.get("portlet")))
-        context = {}
-        context["portlets"] = self._portal.portlets
-        context["tabs"] = self._portal.tabs
-        context["locales"] = ["en_US"]
-        return self.serve_tenjin \
-            (self.request, self.response, "portal.pyhtml", context,
-             engine=self.engine, type="text/html", 
-             globexts = { "_": _ })
-
-    @expose("theme-resource")
-    def theme_resource(self, resource):
-        if self._templates_override:
-            f = os.path.join(self._templates_override, 
-                             "themes", self._portal.theme, resource)
-            if os.access(f, os.R_OK):
-                return self.serve_file (f)
-        f = os.path.join(self._docroot, 
-                         "themes", self._portal.theme, resource)
-        return self.serve_file (f)
-

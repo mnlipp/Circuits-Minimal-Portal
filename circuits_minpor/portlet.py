@@ -22,6 +22,30 @@ from circuits.core.components import BaseComponent
 from abc import ABCMeta
 import uuid
 from circuits.web.errors import NotFound
+from circuits.core.events import Event
+from circuits.core.handlers import handler
+
+class RenderPortlet(Event):
+    
+    success = True
+    
+    def __init__(self, *args, **kwargs):
+        """
+        Renders a portlet.
+        
+        :param mode: the render mode
+        :type mode: :class:`RenderMode`
+        
+        :param window_state: the window state
+        :type window_state: :class:`WindowState`
+        
+        :param locales: the preferred locales
+        :type locales: list of strings
+        
+        :param urlGenerator: generator used by portlet to generate URLs
+        :type urlGenerator: :class:`UrlGenerator`
+        """
+        super(RenderPortlet, self).__init__(args, **kwargs)
 
 class Portlet(BaseComponent):
     
@@ -92,17 +116,29 @@ class Portlet(BaseComponent):
             return "#"
 
     def __init__(self, *args, **kwargs):
-        super(Portlet, self).__init__(*args, **kwargs)
         self._handle = uuid.uuid4()
+        if not kwargs.has_key("channel"):
+            kwargs["channel"] = self._handle
+        super(Portlet, self).__init__(*args, **kwargs)
 
     def description(self, locales=[]):
         return Portlet.Description(self._handle, "Base Portlet")
     
-    def render(self, mode=RenderMode.View,
-               window_state=WindowState.Normal, locales=[],
-               urlGenerator=UrlGenerator()):
+    @handler("render_portlet")
+    def _render_portlet(self, mode=RenderMode.View,
+                        window_state=WindowState.Normal, locales=[],
+                        urlGenerator=UrlGenerator()):
+        return self._do_render(mode, window_state, locales, urlGenerator)
+
+    def _do_render(self, mode, window_state, locales, urlGenerator):
         return "<div class=\"portlet-msg-error\">" \
                 + "Portlet not implemented yet</div>"
+
+    @handler("render_portlet_success", filter=True)
+    def _render_portlet_success (self, event, e, *args, **kwargs):
+        channel = getattr(e, "redirect_success", False)
+        if channel:
+            return self.fireEvent(event, channel)
 
     def resource(self, request, response, resource):
         return NotFound(request, response)

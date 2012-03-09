@@ -36,38 +36,42 @@ class BaseControllerExt(BaseController):
     def serve_tenjin(self, request, response, path, context, 
                      type=None, disposition=None, name=None,
                      engine=None, globexts=None):
-        if not engine and not os.path.isabs(path):
-            raise ValueError("'%s' is not an absolute path." % path)
+        return serve_tenjin(engine or self.engine, request, response, path, 
+                            context, type, disposition, name, globexts)
 
-        if type is None:
-            # Set content-type based on filename extension
-            ext = ""
-            i = path.rfind('.')
-            if i != -1:
-                ext = path[i:].lower()
-            if ext == ".pyhtml":
-                ext = ".html"
-            type = mimetypes.types_map.get(ext, "text/plain")
-        response.headers['Content-Type'] = type
-    
-        if disposition is not None:
-            if name is None:
-                name = os.path.basename(path)
-            cd = '%s; filename="%s"' % (disposition, name)
-            response.headers["Content-Disposition"] = cd
+def serve_tenjin(engine, request, response, path, context, 
+                 type=None, disposition=None, name=None, globexts=None):
+    if not engine and not os.path.isabs(path):
+        raise ValueError("'%s' is not an absolute path." % path)
 
-        if globexts:
-            globs = tenjin.helpers.__dict__.copy()
-            globs.update(globexts)
-        else:
-            globs = tenjin.helpers.__dict__
-        #tenjin.helpers.
+    if type is None:
+        # Set content-type based on filename extension
+        ext = ""
+        i = path.rfind('.')
+        if i != -1:
+            ext = path[i:].lower()
+        if ext == ".pyhtml":
+            ext = ".html"
+        type = mimetypes.types_map.get(ext, "text/plain")
+    response.headers['Content-Type'] = type
 
-        try:
-            response.body = (engine or self.engine) \
-                .render(path, context, globals = globs)
-        except Exception as error:
-            etype, evalue, etraceback = sys.exc_info()
-            error = (etype, evalue, traceback.format_tb(etraceback))
-            return HTTPError(request, response, 500, error=error)        
-        return response
+    if disposition is not None:
+        if name is None:
+            name = os.path.basename(path)
+        cd = '%s; filename="%s"' % (disposition, name)
+        response.headers["Content-Disposition"] = cd
+
+    if globexts:
+        globs = tenjin.helpers.__dict__.copy()
+        globs.update(globexts)
+    else:
+        globs = tenjin.helpers.__dict__
+    #tenjin.helpers.
+
+    try:
+        response.body = engine.render(path, context, globals = globs)
+    except Exception as error:
+        etype, evalue, etraceback = sys.exc_info()
+        error = (etype, evalue, traceback.format_tb(etraceback))
+        return HTTPError(request, response, 500, error=error)        
+    return response

@@ -12,6 +12,6 @@
     </div>
   </div>
   <div class="widgetBody portlet-font">
-    {== portlet.render(locales=locales) ==}
+    {== render(portlet, locales=locales) ==}
   </div>
 </div>

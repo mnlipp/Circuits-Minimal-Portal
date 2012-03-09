@@ -14,4 +14,4 @@
     <?py include('_portlet.pyhtml', portlet=portlet) ?>
   <?py #endfor ?>
 </div>
-<div style="clear:both;height:0px;overflow:hissen;"></div>
+<div style="clear:both;height:0px;overflow:hidden;"></div>
