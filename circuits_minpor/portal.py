@@ -28,15 +28,13 @@ import tenjin
 from copy import copy
 import uuid
 from circuits_minpor.portlet import Portlet, RenderPortlet
-from circuits_minpor.utils import BaseControllerExt, serve_tenjin
-from circuits_bricks.web.dispatchers.dispatcher import HostDispatcher
+from circuits_minpor.utils import serve_tenjin
 from circuits_bricks.web.filters import LanguagePreferences, ThemeSelection
 from circuits.web.sessions import Sessions
 import threading
 from rbtranslations import translation
 from circuits.web.utils import parse_qs, parse_body
-from circuits.core.events import Success
-from circuits.core.values import Value
+from threading import Thread, Semaphore
 
 class Portal(BaseComponent):
 
@@ -62,12 +60,11 @@ class Portal(BaseComponent):
         self._tabs = [_TabInfo("Overview", "_dashboard", selected=True)]
         
     @classmethod
-    def translate(cls, text):
-        trans = translation("l10n", 
-                            os.path.join(cls._themes_dir, 
-                                         ThemeSelection.selected()),
-                                         LanguagePreferences.preferred())
-        return trans.ugettext(text)
+    def translation(cls):
+        return translation("l10n", 
+                           os.path.join(cls._themes_dir, 
+                                        ThemeSelection.selected()),
+                                        LanguagePreferences.preferred())
         
     @handler("registered", channel="*")
     def _on_registered(self, c, m):
@@ -130,7 +127,7 @@ class Portal(BaseComponent):
         self._tabs.append(tab)
         self.select_tab(id(tab))
 
-_ = Portal.translate
+_ = Portal.translation().ugettext
 
 
 class _TabInfo(object):
@@ -190,62 +187,41 @@ class PortalDispatcher(BaseComponent):
             request.path = request.path[len("/theme-resource/"):]
             return self._theme_resource (request, response)
 
+        
+    @handler("request", filter=True, priority=0.05)
+    def _on_render_request(self, event, request, response, peer_cert=None):
         # Perform requested actions
         self._perform_actions(event.kwargs)
         
-        if not request.path == "/":
-            return
+        if request.path == "/":
+            event.portal_response = None
+            Thread(target=self.render_portal_template,
+                   args=(event, request, response, 
+                         self._portal.translation())).start()
+            while not event.portal_response:
+                yield None
+            yield event.portal_response
+
+    def render_portal_template(self, req_evt, request, response, translation):
         context = {}
         context["portlets"] = self._portal.portlets
         context["tabs"] = self._portal.tabs
-        context["locales"] = ["en_US"]
-        self._portlet_refs = 0
-        self._portlet_renderings = []
-        self._portlet_renderings_count = 0
         def render(portlet, **kwargs):
-            self._portlet_refs += 1
             evt = RenderPortlet(**kwargs)
-            evt.render_request = self._portlet_refs
             evt.redirect_success = self.channel
             self.fire(evt, portlet.channel)
-            return "&render_request_%04d;" % self._portlet_refs 
-        self._preliminary_response = serve_tenjin \
+            evt.sync = Semaphore(0)
+            evt.sync.acquire()
+            return evt.value.value 
+        req_evt.portal_response = serve_tenjin \
             (self.engine, request, response, "portal.pyhtml", 
              context, type="text/html", 
-             globexts = { "_": _ , "render": render})
+             globexts = { "_": translation.ugettext , "render": render})
 
-        # Really filter this event, including automatic success generation
-        event.success = False
-        self._request_event = event
-        return Value()
 
     @handler("render_portlet_success")
     def _render_portlet_success (self, e, *args, **kwargs):
-        slot = e.render_request - 1
-        if len(self._portlet_renderings) < slot + 1:
-            self._portlet_renderings += \
-                [None] * (slot - len(self._portlet_renderings) + 1)
-        self._portlet_renderings[slot] = e.value.value
-        self._portlet_renderings_count -= 1
-        if self._portlet_renderings_count > 0:
-            return
-        # Deliver result in value of original request
-        # Trigger processing of result
-        resp = ""
-        for part in self._preliminary_response.body[0] \
-            .split("&render_request_"):
-            if resp == "":
-                resp = part
-                continue
-            part_num = int(part[0:3])
-            resp += self._portlet_renderings[part_num]
-            resp += part[5:]
-        self._preliminary_response.body[0] = resp
-        self._request_event.value.value = self._preliminary_response
-        res_evt = Success.create("%sSuccess" % Request.__name__,
-                                 self._request_event, resp)
-        self.fire(res_evt, *self._request_event.channels)
-        return Value()
+        e.sync.release()
     
     def _theme_resource(self, request, response):
         f = os.path.join(self._portal._themes_dir, 
