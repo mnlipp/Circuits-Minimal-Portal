@@ -37,7 +37,7 @@ from threading import Thread, Semaphore
 
 class Portal(BaseComponent):
 
-    channel = "mipypo"
+    channel = "minpor"
     _thread_data = threading.local()
     _themes_dir = os.path.join(os.path.dirname(__file__), "templates", "themes")
 
@@ -51,7 +51,7 @@ class Portal(BaseComponent):
             self.channel = server.channel
         self.server = server
         Sessions(channel = server.channel, 
-                 name="minpor.session").register(server)
+                 name=server.channel+".session").register(server)
         LanguagePreferences(channel = server.channel).register(server)
         ThemeSelection(channel = server.channel).register(server)
         PortalDispatcher(self, channel = server.channel).register(server)
@@ -161,6 +161,12 @@ class _TabInfo(object):
 
 
 class PortalDispatcher(BaseComponent):
+    """
+    The :class:`PortalDispatcher` handles all request directed at the
+    portal. These may be render requests for the portal itself, requests
+    for a portal resource, action requests directed at a portlet and resource
+    requests directed at a portet.
+    """
 
     _docroot = os.path.abspath(os.path.join(os.path.dirname(__file__),
                                             "templates"))
@@ -177,6 +183,10 @@ class PortalDispatcher(BaseComponent):
     
     @handler("request", filter=True, priority=0.1)
     def _on_request(self, event, request, response, peer_cert=None):
+        """
+        First request handler. This handler handles resource requests
+        directed at the portal or a portlet.
+        """
         if peer_cert:
             event.peer_cert = peer_cert
         event.kwargs = parse_qs(request.qs)
@@ -187,23 +197,43 @@ class PortalDispatcher(BaseComponent):
             f = os.path.join(self._portal._themes_dir, 
                              self._portal.theme, request.path)
             return tools.serve_file(request, response, f)
-
+        # TODO: handle portlet resources
         
     @handler("request", filter=True, priority=0.05)
     def _on_portal_request(self, event, request, response, peer_cert=None):
-        # Perform requested actions
+        """
+        Second request handler. This handler processes portlet actions
+        and portal render requests. Portal rendering has to be done in
+        a separate handler, because it uses circuits' "suspend" feature
+        (handler returns a generator, which may not be mixed with
+        regular returns). This allows us to render the portlets
+        using render events that are processed before this handler returns
+        its result. Using :class:`RenderRequest` events instead of invoking
+        the render method directly allows other components to intercept
+        the requests as is usual in circuits.
+        """
+        # Perform requested portal actions (state changes)
         self._perform_portal_actions(event.kwargs)
-        
+
+        # Render portal
         if request.path == "/":
             event.portal_response = None
-            Thread(target=self.render_portal_template,
+            # See _render_portal_template for an explanation
+            # why we need another thread here. Pass any information
+            # that is thread local as addition parameters
+            Thread(target=self._render_portal_template,
                    args=(event, request, response, 
+                         ThemeSelection.selected(),
+                         LanguagePreferences.preferred(),
                          self._portal.translation())).start()
             while not event.portal_response:
                 yield None
             yield event.portal_response
 
     def _perform_portal_actions(self, kwargs):
+        """
+        Perform any requested changes of the portal state.
+        """
         if kwargs.get("action") == "select":
             self._portal.select_tab(int(kwargs.get("tab")))
         elif kwargs.get("action") == "close":
@@ -211,21 +241,44 @@ class PortalDispatcher(BaseComponent):
         elif kwargs.get("action") == "solo":
             self._portal.add_solo(uuid.UUID(kwargs.get("portlet")))
 
-    def render_portal_template(self, req_evt, request, response, translation):
-        context = {}
-        context["portlets"] = self._portal.portlets
-        context["tabs"] = self._portal.tabs
+    def _render_portal_template(self, req_evt, request, response, 
+                                theme, locales, portal_translation):
+        """
+        Render the portal using the "top" template. The template needs
+        the individual portlet's content at certain points. As we want
+        that content to be provided as response to a :class:`RenderPortlet`
+        event, we have to suspend the execution of the template until the
+        response becomes available. If tenjin was made for circuits, it could
+        yield until the results becomes available. As this is not the case,
+        we execute the template in its own thread. Whenever portlet
+        content is required, the :class:`RenderPortlet` event is fired
+        and execution suspended by waiting on a semaphore. The render
+        request is executed in the main thread and its completion signaled
+        back to the template processor using the semaphore.
+        """
+        context = { "portlets": self._portal.portlets,
+                    "tabs": self._portal.tabs,
+                    "theme": theme,
+                    "locales": locales
+                  }
+        
         def render(portlet, **kwargs):
+            """
+            The render portlet function made availble to the template engine.
+            It fires the :class:`RenderPortlet` event and waits for the
+            result to become available.
+            """
             evt = RenderPortlet(**kwargs)
             evt.success_channels = [self.channel]
             self.fire(evt, portlet.channel)
             evt.sync = Semaphore(0)
             evt.sync.acquire()
             return evt.value.value 
+        # Render the template.
         req_evt.portal_response = serve_tenjin \
             (self.engine, request, response, "portal.pyhtml", 
              context, type="text/html", 
-             globexts = { "_": translation.ugettext , "render": render})
+             globexts = { "_": portal_translation.ugettext , "render": render})
 
 
     @handler("render_portlet_success")
