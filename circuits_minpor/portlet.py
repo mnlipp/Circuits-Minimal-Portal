@@ -134,11 +134,5 @@ class Portlet(BaseComponent):
         return "<div class=\"portlet-msg-error\">" \
                 + "Portlet not implemented yet</div>"
 
-    @handler("render_portlet_success", filter=True)
-    def _render_portlet_success (self, event, e, *args, **kwargs):
-        channel = getattr(e, "redirect_success", False)
-        if channel:
-            return self.fireEvent(event, channel)
-
     def resource(self, request, response, resource):
         return NotFound(request, response)

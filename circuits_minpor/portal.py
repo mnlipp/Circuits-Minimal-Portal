@@ -18,8 +18,7 @@
 
 .. moduleauthor:: mnl
 """
-from circuits.web import expose, tools
-from circuits.web.events import Request
+from circuits.web import tools
 from circuits.core.components import BaseComponent
 from circuits.web.servers import BaseServer
 import os
@@ -52,7 +51,7 @@ class Portal(BaseComponent):
             self.channel = server.channel
         self.server = server
         Sessions(channel = server.channel, 
-                 name="mipypo.session").register(server)
+                 name="minpor.session").register(server)
         LanguagePreferences(channel = server.channel).register(server)
         ThemeSelection(channel = server.channel).register(server)
         PortalDispatcher(self, channel = server.channel).register(server)
@@ -185,13 +184,15 @@ class PortalDispatcher(BaseComponent):
         # Is this a resource request?
         if request.path.startswith("/theme-resource/"):
             request.path = request.path[len("/theme-resource/"):]
-            return self._theme_resource (request, response)
+            f = os.path.join(self._portal._themes_dir, 
+                             self._portal.theme, request.path)
+            return tools.serve_file(request, response, f)
 
         
     @handler("request", filter=True, priority=0.05)
-    def _on_render_request(self, event, request, response, peer_cert=None):
+    def _on_portal_request(self, event, request, response, peer_cert=None):
         # Perform requested actions
-        self._perform_actions(event.kwargs)
+        self._perform_portal_actions(event.kwargs)
         
         if request.path == "/":
             event.portal_response = None
@@ -202,13 +203,21 @@ class PortalDispatcher(BaseComponent):
                 yield None
             yield event.portal_response
 
+    def _perform_portal_actions(self, kwargs):
+        if kwargs.get("action") == "select":
+            self._portal.select_tab(int(kwargs.get("tab")))
+        elif kwargs.get("action") == "close":
+            self._portal.close_tab(int(kwargs.get("tab")))
+        elif kwargs.get("action") == "solo":
+            self._portal.add_solo(uuid.UUID(kwargs.get("portlet")))
+
     def render_portal_template(self, req_evt, request, response, translation):
         context = {}
         context["portlets"] = self._portal.portlets
         context["tabs"] = self._portal.tabs
         def render(portlet, **kwargs):
             evt = RenderPortlet(**kwargs)
-            evt.redirect_success = self.channel
+            evt.success_channels = [self.channel]
             self.fire(evt, portlet.channel)
             evt.sync = Semaphore(0)
             evt.sync.acquire()
@@ -223,15 +232,3 @@ class PortalDispatcher(BaseComponent):
     def _render_portlet_success (self, e, *args, **kwargs):
         e.sync.release()
     
-    def _theme_resource(self, request, response):
-        f = os.path.join(self._portal._themes_dir, 
-                         self._portal.theme, request.path)
-        return tools.serve_file(request, response, f)
-
-    def _perform_actions(self, kwargs):
-        if kwargs.get("action") == "select":
-            self._portal.select_tab(int(kwargs.get("tab")))
-        elif kwargs.get("action") == "close":
-            self._portal.close_tab(int(kwargs.get("tab")))
-        elif kwargs.get("action") == "solo":
-            self._portal.add_solo(uuid.UUID(kwargs.get("portlet")))
