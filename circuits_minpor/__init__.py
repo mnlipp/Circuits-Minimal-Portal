@@ -20,6 +20,6 @@
 """
 
 from .portal import Portal
-from .portlet import Portlet
+from .portlet import Portlet, TemplatePortlet
 
-__all__ = ["Portal", "Portlet"]
+__all__ = ["Portal", "Portlet", "TemplatePortlet"]

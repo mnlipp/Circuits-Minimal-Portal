@@ -18,15 +18,15 @@
 
 .. moduleauthor:: mnl
 """
-from circuits_minpor import Portlet
+from circuits_minpor.portlet import TemplatePortlet, Portlet
+import os
 
-class HelloWorldPortlet(Portlet):
+class HelloWorldPortlet(TemplatePortlet):
+
+    def __init__(self, *args, **kwargs):
+        super(HelloWorldPortlet, self) \
+            .__init__(os.path.join(os.path.dirname(__file__), "templates"), 
+                      "helloworld", *args, **kwargs)
 
     def description(self, locales=[]):
         return Portlet.Description(self._handle, "Hello World Portlet")
-    
-    def _do_render(self, mode, window_state, locales, urlGenerator):
-        if window_state == Portlet.WindowState.Solo:
-            return "<div style=\"padding: 1em; font-size: 400%\">Hello World!</div>"
-        else:
-            return "<div style=\"padding: 1em;\">Hello World!</div>"

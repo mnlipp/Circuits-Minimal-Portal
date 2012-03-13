@@ -262,13 +262,16 @@ class PortalDispatcher(BaseComponent):
                     "locales": locales
                   }
         
-        def render(portlet, **kwargs):
+        def render(portlet, mode=Portlet.RenderMode.View, 
+                   window_state=Portlet.WindowState.Normal, 
+                   locales=[], **kwargs):
             """
             The render portlet function made availble to the template engine.
             It fires the :class:`RenderPortlet` event and waits for the
             result to become available.
             """
-            evt = RenderPortlet(**kwargs)
+            evt = RenderPortlet(mode, window_state, locales, 
+                                Portlet.UrlGenerator(), **kwargs)
             evt.success_channels = [self.channel]
             self.fire(evt, portlet.channel)
             evt.sync = Semaphore(0)

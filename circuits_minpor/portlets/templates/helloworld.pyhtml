@@ -1,0 +1,7 @@
+<?py #@ARGS mode, window_state, locales, urlGenerator ?>
+<?py from circuits_minpor import Portlet ?>
+<?py if window_state == Portlet.WindowState.Solo: ?>
+    <div style="padding: 1em; font-size: 400%">Hello World!</div>
+<?py else: ?>
+    <div style="padding: 1em;">Hello World!</div>
+<?py #endif ?>

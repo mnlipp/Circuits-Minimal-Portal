@@ -24,12 +24,15 @@ import uuid
 from circuits.web.errors import NotFound
 from circuits.core.events import Event
 from circuits.core.handlers import handler
+import os
+import rbtranslations
+import tenjin
 
 class RenderPortlet(Event):
     
     success = True
     
-    def __init__(self, *args, **kwargs):
+    def __init__(self, mode, window_state, locales, urlGenerator, **kwargs):
         """
         Renders a portlet.
         
@@ -45,7 +48,9 @@ class RenderPortlet(Event):
         :param urlGenerator: generator used by portlet to generate URLs
         :type urlGenerator: :class:`UrlGenerator`
         """
-        super(RenderPortlet, self).__init__(args, **kwargs)
+        super(RenderPortlet, self).__init__\
+            (mode, window_state, locales, urlGenerator, **kwargs)
+
 
 class Portlet(BaseComponent):
     
@@ -125,14 +130,57 @@ class Portlet(BaseComponent):
         return Portlet.Description(self._handle, "Base Portlet")
     
     @handler("render_portlet")
-    def _render_portlet(self, mode=RenderMode.View,
-                        window_state=WindowState.Normal, locales=[],
-                        urlGenerator=UrlGenerator()):
-        return self._do_render(mode, window_state, locales, urlGenerator)
+    def _render_portlet(self, mode=RenderMode.View, 
+                        window_state=WindowState.Normal, 
+                        locales=[], urlGenerator=UrlGenerator(), **kwargs):
+        return self._do_render(mode, window_state, 
+                               locales, urlGenerator, **kwargs)
 
-    def _do_render(self, mode, window_state, locales, urlGenerator):
+    def _do_render(self, mode, window_state, locales, urlGenerator, **kwargs):
         return "<div class=\"portlet-msg-error\">" \
                 + "Portlet not implemented yet</div>"
 
     def resource(self, request, response, resource):
         return NotFound(request, response)
+
+
+class TemplatePortlet(Portlet):
+
+    _engines = dict()
+    _translations = dict()
+
+    def __init__(self, template_dir, name, *args, **kwargs):
+        super(TemplatePortlet, self).__init__(*args, **kwargs)
+        self._template_dir = os.path.abspath(template_dir)
+        self._name = name
+
+    def _do_render(self, mode, window_state, locales, urlGenerator, 
+                   context_exts = {}, globs_exts = {}, **kwargs):
+        theme = kwargs.get("theme", "default")
+        # Find/Create engine
+        engine = self._engines.get(theme, None)
+        if not engine:
+            engine = tenjin.Engine\
+                (path=[os.path.join(self._template_dir, "themes", theme),
+                       self._template_dir])
+            self._engines[theme] = engine
+        # Find/Create translations for globals
+        lang_hash = ";".join(locales)
+        translation = self._translations.get((theme, lang_hash), None)
+        if not translation:
+            translation = rbtranslations.translation\
+                (self._name + "-l10n", 
+                 os.path.join(self._template_dir, "themes", theme),
+                 locales)
+            translation.add_fallback(rbtranslations.translation\
+                (self._name + "-l10n", self._template_dir, locales))
+            self._translations[(theme, lang_hash)] = translation
+        # Prepare context
+        context = { "mode": mode, "window_state": window_state,
+                    "locales": locales, "urlGenerator": urlGenerator }
+        context.update(context_exts)
+        # Prepare globals
+        globs = tenjin.helpers.__dict__
+        globs.update({ "_": translation.ugettext })
+        return engine.render(self._name + ".pyhtml",  
+                             context = context, globals = globs)
