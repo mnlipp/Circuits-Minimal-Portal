@@ -21,6 +21,7 @@
 from circuits.web import tools
 from circuits.core.components import BaseComponent
 from circuits.web.servers import BaseServer
+from circuits.web.events import Request
 import os
 from circuits.core.handlers import handler
 import tenjin
@@ -45,6 +46,7 @@ class Portal(BaseComponent):
                  portal_title=None, templates_dir=None, **kwargs):
         super(Portal, self).__init__(**kwargs)
         self._portlets = []
+        self._portlets_by_id = dict()
         if server is None:
             server = BaseServer(("", 4444), channel=self.channel)
         else:
@@ -160,6 +162,25 @@ class _TabInfo(object):
         return self._portlet
 
 
+class _UGFactory(Portlet.UrlGeneratorFactory):
+    
+    class UG(Portlet.UrlGenerator):
+
+        def __init__(self, portlet):
+            self._handle = portlet.description().handle
+    
+        def action_url(self, event):
+            return "#"
+
+        def resource_url(self, resource):
+            return "/portlet-resource/" + self._handle \
+                + (resource if resource.startswith("/") \
+                            else ("/" + resource))
+
+    def make_generator(self, portlet):
+        return self.UG(portlet)
+    
+    
 class PortalDispatcher(BaseComponent):
     """
     The :class:`PortalDispatcher` handles all request directed at the
@@ -170,6 +191,7 @@ class PortalDispatcher(BaseComponent):
 
     _docroot = os.path.abspath(os.path.join(os.path.dirname(__file__),
                                             "templates"))
+    _ugFactory = _UGFactory()
 
     def __init__(self, portal, *args, **kwargs):
         super(PortalDispatcher, self).__init__(*args, **kwargs)
@@ -191,14 +213,24 @@ class PortalDispatcher(BaseComponent):
             event.peer_cert = peer_cert
         event.kwargs = parse_qs(request.qs)
         parse_body(request, response, event.kwargs)
-        # Is this a resource request?
+        # Is this a portal resource request?
         if request.path.startswith("/theme-resource/"):
             request.path = request.path[len("/theme-resource/"):]
             f = os.path.join(self._portal._themes_dir, 
                              self._portal.theme, request.path)
             return tools.serve_file(request, response, f)
-        # TODO: handle portlet resources
-        
+        # Is this a portlet resource request?
+        if request.path.startswith("/portlet-resource/"):
+            segs = request.path.split("/", 3)
+            if len(segs) == 4:
+                request.path = segs[3]
+                event.kwargs.update\
+                    ({ "theme": ThemeSelection.selected(),
+                       "locales": LanguagePreferences.preferred()})
+                return self.fire\
+                    (Request.create("PortletResource", *event.args,
+                                    **event.kwargs), segs[2])        
+                
     @handler("request", filter=True, priority=0.05)
     def _on_portal_request(self, event, request, response, peer_cert=None):
         """
@@ -239,7 +271,7 @@ class PortalDispatcher(BaseComponent):
         elif kwargs.get("action") == "close":
             self._portal.close_tab(int(kwargs.get("tab")))
         elif kwargs.get("action") == "solo":
-            self._portal.add_solo(uuid.UUID(kwargs.get("portlet")))
+            self._portal.add_solo(kwargs.get("portlet"))
 
     def _render_portal_template(self, req_evt, request, response, 
                                 theme, locales, portal_translation):
@@ -271,7 +303,7 @@ class PortalDispatcher(BaseComponent):
             result to become available.
             """
             evt = RenderPortlet(mode, window_state, locales, 
-                                Portlet.UrlGenerator(), **kwargs)
+                                self._ugFactory, **kwargs)
             evt.success_channels = [self.channel]
             self.fire(evt, portlet.channel)
             evt.sync = Semaphore(0)

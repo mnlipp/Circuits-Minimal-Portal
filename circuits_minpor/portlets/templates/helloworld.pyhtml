@@ -1,7 +1,11 @@
-<?py #@ARGS mode, window_state, locales, urlGenerator ?>
+<?py #@ARGS mode, window_state, theme, locales ?>
 <?py from circuits_minpor import Portlet ?>
 <?py if window_state == Portlet.WindowState.Solo: ?>
-    <div style="padding: 1em; font-size: 400%">Hello World!</div>
+    <div style="padding: 1em; font-size: 400%">{= _("Hello World!") =}
+    <img style="vertical-align: bottom;" src="{== resource_url("globe.ico") ==}">
 <?py else: ?>
-    <div style="padding: 1em;">Hello World!</div>
+    <div style="padding: 1em;">{= _("Hello World!") =}
+    <img style="vertical-align: bottom;" height="20" src="{== resource_url("globe.ico") ==}">
 <?py #endif ?>
+    <!-- World icon from http://apathae.deviantart.com/ -->
+    </div>
