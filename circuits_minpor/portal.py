@@ -35,14 +35,48 @@ from threading import Thread, Semaphore
 import rbtranslations
 
 class Portal(BaseComponent):
+    """
+    This class implements a portal, i.e. a web application that manages
+    consolidation of small web applications, the so called portlets. 
+    """
 
     channel = "minpor"
+    
+    _prefix = None
+    _title = None
 
     def __init__(self, server=None, prefix=None, 
-                 portal_title=None, templates_dir=None, **kwargs):
+                 title=None, templates_dir=None, **kwargs):
+        """
+        :param server: the component that handles the basic connection
+                       and protocol management. If not provided, the
+                       Portal creates its own  
+                       :class:`~circuits.web.server.BaseServer` component
+                       that listens on port 4444.
+        :type server: :class:`circuits.web.server.BaseServer`
+        
+        :param prefix: a prefix for URLs used in the portal. This allows
+                       the portal to co-exist with other content on the same
+                       web server. If specified, all URLs will be prefixed
+                       with this parameter. The value must start with a 
+                       slash and must not end with a slash.
+        :type prefix: string
+        
+        :param title: The title of the portal (displayed in the
+                      browser's title bar)
+        :type title: string
+        
+        :param templates_dir: a directory with templates that replace
+                              the portal's standard templates. Any template
+                              and localization resource is first searched
+                              for in this directory, then in the portal's
+                              built-in default directory.
+        :type templates_dir: string
+        """
         super(Portal, self).__init__(**kwargs)
+        self._prefix = prefix or ""
+        self._title = title
         self._portlets = []
-        self._portlets_by_id = dict()
         if server is None:
             server = BaseServer(("", 4444), channel=self.channel)
         else:
@@ -75,6 +109,14 @@ class Portal(BaseComponent):
             return
         if c in self._portlets:
             self._portlets.remove(c)
+
+    @property
+    def prefix(self):
+        return self._prefix
+
+    @property
+    def title(self):
+        return self._title
 
     @property
     def portlets(self):
@@ -165,29 +207,36 @@ class PortalDispatcher(BaseComponent):
 
     class _UGFactory(Portlet.UrlGeneratorFactory):
         
+        def __init__(self, prefix):
+            self._prefix = prefix
+        
         class UG(Portlet.UrlGenerator):
     
-            def __init__(self, portlet):
+            def __init__(self, prefix, portlet):
+                self._prefix = prefix
                 self._handle = portlet.description().handle
         
             def action_url(self, event):
                 return "#"
     
             def resource_url(self, resource):
-                return "/portlet-resource/" + self._handle \
+                return self._prefix + "/portlet-resource/" + self._handle \
                     + (resource if resource.startswith("/") \
                                 else ("/" + resource))
     
         def make_generator(self, portlet):
-            return self.UG(portlet)
+            return self.UG(self._prefix, portlet)
         
-    _ugFactory = _UGFactory()
-
     def __init__(self, portal, *args, **kwargs):
         super(PortalDispatcher, self).__init__(*args, **kwargs)
         self.host = kwargs.get("host", None)
         self._portal = portal
         self._engine = tenjin.Engine(path=portal._templates_path)
+        self._theme_resource = portal.prefix + "/theme-resource/"
+        self._portlet_resource = portal.prefix + "/portlet-resource/"
+        self._portal_path = "/" if portal.prefix == "" else portal.prefix
+        self._ugFactory = PortalDispatcher._UGFactory(portal.prefix)
+
     
     @handler("request", filter=True, priority=0.1)
     def _on_request(self, event, request, response, peer_cert=None):
@@ -200,8 +249,8 @@ class PortalDispatcher(BaseComponent):
         event.kwargs = parse_qs(request.qs)
         parse_body(request, response, event.kwargs)
         # Is this a portal resource request?
-        if request.path.startswith("/theme-resource/"):
-            request.path = request.path[len("/theme-resource/"):]
+        if request.path.startswith(self._theme_resource):
+            request.path = request.path[len(self._theme_resource):]
             for directory in self._portal._templates_path:
                 res = os.path.join(directory, "themes", 
                                    ThemeSelection.selected(), request.path)
@@ -209,16 +258,16 @@ class PortalDispatcher(BaseComponent):
                     return tools.serve_file(request, response, res)
             return
         # Is this a portlet resource request?
-        if request.path.startswith("/portlet-resource/"):
-            segs = request.path.split("/", 3)
-            if len(segs) == 4:
-                request.path = segs[3]
+        if request.path.startswith(self._portlet_resource):
+            segs = request.path[len(self._portlet_resource):].split("/")
+            if len(segs) >= 2:
+                request.path = "/".join(segs[1:])
                 event.kwargs.update\
                     ({ "theme": ThemeSelection.selected(),
                        "locales": LanguagePreferences.preferred()})
                 return self.fire\
                     (Request.create("PortletResource", *event.args,
-                                    **event.kwargs), segs[2])        
+                                    **event.kwargs), segs[0])        
 
     @handler("request", filter=True, priority=0.05)
     def _on_portal_request(self, event, request, response, peer_cert=None):
@@ -237,7 +286,7 @@ class PortalDispatcher(BaseComponent):
         self._perform_portal_actions(event.kwargs)
 
         # Render portal
-        if request.path == "/":
+        if request.path == self._portal_path:
             event.portal_response = None
             # See _render_portal_template for an explanation
             # why we need another thread here. Pass any information
@@ -302,7 +351,8 @@ class PortalDispatcher(BaseComponent):
 
         def run(self):
             portal = self._dispatcher._portal
-            context = { "portlets": portal.portlets,
+            context = { "title": portal.title,
+                        "portlets": portal.portlets,
                         "tabs": portal.tabs,
                         "theme": self._theme,
                         "locales": self._locales
@@ -328,6 +378,7 @@ class PortalDispatcher(BaseComponent):
                 (self._dispatcher._engine, self._request, self._response,
                  "portal.pyhtml", context, type="text/html", 
                  globexts = { "_": self._translation.ugettext,
+                              "resource_url": (lambda x: portal.prefix + "/" + x),
                               "render": render})
     
     @handler("render_portlet_success")

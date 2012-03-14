@@ -52,7 +52,7 @@ if __name__ == '__main__':
     # Build a web (HTTP) server for handling user interface requests.
     port = int(application.config.get("ui", "port", 0))
     portal_server = BaseServer(("", port), channel="ui").register(application)
-    Portal(portal_server).register(application)
+    Portal(portal_server, title="Test Portal").register(application)
     HelloWorldPortlet().register(application)
     
     from circuits.tools import graph

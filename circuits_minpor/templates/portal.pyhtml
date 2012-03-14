@@ -1,12 +1,12 @@
-<?py #@ARGS portlets, tabs, theme, locales ?>
+<?py #@ARGS title, portlets, tabs, theme, locales ?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-  <title>Test</title>
+  <title>{= title =}</title>
   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
   <meta name="description" content="This is ...">
-  <link rel="shortcut icon" href="theme-resource/favicon.ico"> 
-  <link rel="stylesheet" type="text/css" href="theme-resource/mipypo.css">
+  <link rel="shortcut icon" href="{== resource_url("theme-resource/favicon.ico") ==}"> 
+  <link rel="stylesheet" type="text/css" href="{== resource_url("theme-resource/mipypo.css") ==}">
 </head>
 
 <body>
@@ -16,7 +16,7 @@
   <?py     selected=tab ?>
   <?py   #endif ?>
 <span class="{= "tab" + (" activeTab" if tab.selected else "") 
-             + (" closableTab" if tab.closeable else "") =}"><a class="tabLabel" href="?tab={= id(tab) =}&action=select">{= _(tab.label) =}</a><a class="tabCloser" href="?tab={= id(tab) =}&action=close"><img src="theme-resource/close-tab-active.png"></a></span><?py #endfor ?>
+             + (" closableTab" if tab.closeable else "") =}"><a class="tabLabel" href="?tab={= id(tab) =}&action=select">{= _(tab.label) =}</a><a class="tabCloser" href="?tab={= id(tab) =}&action=close"><img src="{== resource_url("theme-resource/close-tab-active.png") ==}"></a></span><?py #endfor ?>
   </div>
   <div class="page">
     <?py include(selected.content_renderer + ".pyhtml", tab=selected, 
