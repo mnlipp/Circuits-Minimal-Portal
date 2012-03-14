@@ -163,13 +163,11 @@ class Portlet(BaseComponent):
 
 class TemplatePortlet(Portlet):
 
-    _engines = dict()
-    _translations = dict()
-
     def __init__(self, template_dir, name, *args, **kwargs):
         super(TemplatePortlet, self).__init__(*args, **kwargs)
         self._template_dir = os.path.abspath(template_dir)
         self._name = name
+        self._engine = tenjin.Engine(path=[self._template_dir])
 
     def _do_render(self, mode, window_state, locales, url_generator, 
                    key_language="en", context_exts = {}, globs_exts = {},
@@ -177,24 +175,11 @@ class TemplatePortlet(Portlet):
         theme = kwargs.get("theme", "default")
         theme_path = os.path.join(self._template_dir, "themes", theme)
         if not os.path.exists(theme_path):
-            theme_path = os.path.join(self._template_dir, "themes", "default")
-        # Find/Create engine
-        engine = self._engines.get(theme, None)
-        if not engine:
-            engine = tenjin.Engine\
-                (path=[theme_path, self._template_dir])
-            self._engines[theme] = engine
+            theme_path = None
         # Find/Create translations for globals
-        lang_hash = ";".join(locales)
-        translation = self._translations.get((theme, lang_hash), None)
-        if not translation:
-            translation = rbtranslations.translation\
-                (self._name + "-l10n", theme_path, locales,
-                 key_language=key_language)
-            translation.add_fallback(rbtranslations.translation\
-                (self._name + "-l10n", self._template_dir, locales,
-                 key_language=key_language))
-            self._translations[(theme, lang_hash)] = translation
+        translation = rbtranslations.translation\
+            (self._name + "-l10n", self._template_dir, locales,
+             key_language=key_language)
         # Prepare context
         context = { "mode": mode, "window_state": window_state,
                     "theme": theme, "locales": locales }
@@ -204,8 +189,8 @@ class TemplatePortlet(Portlet):
         globs.update({ "_": translation.ugettext,
                        "action_url": url_generator.action_url,
                        "resource_url": url_generator.resource_url })
-        return engine.render(self._name + ".pyhtml",  
-                             context = context, globals = globs)
+        return self._engine.render(self._name + ".pyhtml",  
+                                   context = context, globals = globs)
 
     def _do_portlet_resource(self, request, response, **kwargs):
         theme = kwargs.get("theme", "default")

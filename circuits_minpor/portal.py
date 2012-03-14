@@ -26,21 +26,17 @@ import os
 from circuits.core.handlers import handler
 import tenjin
 from copy import copy
-import uuid
 from circuits_minpor.portlet import Portlet, RenderPortlet
 from circuits_minpor.utils import serve_tenjin
 from circuits_bricks.web.filters import LanguagePreferences, ThemeSelection
 from circuits.web.sessions import Sessions
-import threading
-from rbtranslations import translation
 from circuits.web.utils import parse_qs, parse_body
 from threading import Thread, Semaphore
+import rbtranslations
 
 class Portal(BaseComponent):
 
     channel = "minpor"
-    _thread_data = threading.local()
-    _themes_dir = os.path.join(os.path.dirname(__file__), "templates", "themes")
 
     def __init__(self, server=None, prefix=None, 
                  portal_title=None, templates_dir=None, **kwargs):
@@ -52,6 +48,12 @@ class Portal(BaseComponent):
         else:
             self.channel = server.channel
         self.server = server
+        if templates_dir:
+            self._templates_path = [os.path.abspath(templates_dir)]
+        else:
+            self._templates_path = []
+        self._templates_path \
+            += [os.path.join(os.path.dirname(__file__), "templates")]
         Sessions(channel = server.channel, 
                  name=server.channel+".session").register(server)
         LanguagePreferences(channel = server.channel).register(server)
@@ -59,14 +61,6 @@ class Portal(BaseComponent):
         PortalDispatcher(self, channel = server.channel).register(server)
             
         self._tabs = [_TabInfo("Overview", "_dashboard", selected=True)]
-        
-    @classmethod
-    def translation(cls):
-        return translation("l10n", 
-                           os.path.join(cls._themes_dir, 
-                                        ThemeSelection.selected()),
-                                        LanguagePreferences.preferred(),
-                           key_language="en")
         
     @handler("registered", channel="*")
     def _on_registered(self, c, m):
@@ -129,8 +123,6 @@ class Portal(BaseComponent):
         self._tabs.append(tab)
         self.select_tab(id(tab))
 
-_ = Portal.translation().ugettext
-
 
 class _TabInfo(object):
     
@@ -162,25 +154,6 @@ class _TabInfo(object):
     def portlet(self):
         return self._portlet
 
-
-class _UGFactory(Portlet.UrlGeneratorFactory):
-    
-    class UG(Portlet.UrlGenerator):
-
-        def __init__(self, portlet):
-            self._handle = portlet.description().handle
-    
-        def action_url(self, event):
-            return "#"
-
-        def resource_url(self, resource):
-            return "/portlet-resource/" + self._handle \
-                + (resource if resource.startswith("/") \
-                            else ("/" + resource))
-
-    def make_generator(self, portlet):
-        return self.UG(portlet)
-    
     
 class PortalDispatcher(BaseComponent):
     """
@@ -190,19 +163,31 @@ class PortalDispatcher(BaseComponent):
     requests directed at a portet.
     """
 
-    _docroot = os.path.abspath(os.path.join(os.path.dirname(__file__),
-                                            "templates"))
+    class _UGFactory(Portlet.UrlGeneratorFactory):
+        
+        class UG(Portlet.UrlGenerator):
+    
+            def __init__(self, portlet):
+                self._handle = portlet.description().handle
+        
+            def action_url(self, event):
+                return "#"
+    
+            def resource_url(self, resource):
+                return "/portlet-resource/" + self._handle \
+                    + (resource if resource.startswith("/") \
+                                else ("/" + resource))
+    
+        def make_generator(self, portlet):
+            return self.UG(portlet)
+        
     _ugFactory = _UGFactory()
 
     def __init__(self, portal, *args, **kwargs):
         super(PortalDispatcher, self).__init__(*args, **kwargs)
         self.host = kwargs.get("host", None)
         self._portal = portal
-        path=[self._docroot]
-        self._templates_override = kwargs.get("templates_dir", None)
-        if self._templates_override:
-            path.append(self._templates_override)
-        self.engine = tenjin.Engine(path=path)
+        self._engine = tenjin.Engine(path=portal._templates_path)
     
     @handler("request", filter=True, priority=0.1)
     def _on_request(self, event, request, response, peer_cert=None):
@@ -217,9 +202,12 @@ class PortalDispatcher(BaseComponent):
         # Is this a portal resource request?
         if request.path.startswith("/theme-resource/"):
             request.path = request.path[len("/theme-resource/"):]
-            f = os.path.join(self._portal._themes_dir, 
-                             self._portal.theme, request.path)
-            return tools.serve_file(request, response, f)
+            for directory in self._portal._templates_path:
+                res = os.path.join(directory, "themes", 
+                                   ThemeSelection.selected(), request.path)
+                if os.path.exists(res):
+                    return tools.serve_file(request, response, res)
+            return
         # Is this a portlet resource request?
         if request.path.startswith("/portlet-resource/"):
             segs = request.path.split("/", 3)
@@ -231,7 +219,7 @@ class PortalDispatcher(BaseComponent):
                 return self.fire\
                     (Request.create("PortletResource", *event.args,
                                     **event.kwargs), segs[2])        
-                
+
     @handler("request", filter=True, priority=0.05)
     def _on_portal_request(self, event, request, response, peer_cert=None):
         """
@@ -254,11 +242,7 @@ class PortalDispatcher(BaseComponent):
             # See _render_portal_template for an explanation
             # why we need another thread here. Pass any information
             # that is thread local as addition parameters
-            Thread(target=self._render_portal_template,
-                   args=(event, request, response, 
-                         ThemeSelection.selected(),
-                         LanguagePreferences.preferred(),
-                         self._portal.translation())).start()
+            self._RenderThread(self, event, request, response).start()
             while not event.portal_response:
                 yield None
             yield event.portal_response
@@ -274,8 +258,8 @@ class PortalDispatcher(BaseComponent):
         elif kwargs.get("action") == "solo":
             self._portal.add_solo(kwargs.get("portlet"))
 
-    def _render_portal_template(self, req_evt, request, response, 
-                                theme, locales, portal_translation):
+                
+    class _RenderThread(Thread):
         """
         Render the portal using the "top" template. The template needs
         the individual portlet's content at certain points. As we want
@@ -289,35 +273,65 @@ class PortalDispatcher(BaseComponent):
         request is executed in the main thread and its completion signaled
         back to the template processor using the semaphore.
         """
-        context = { "portlets": self._portal.portlets,
-                    "tabs": self._portal.tabs,
-                    "theme": theme,
-                    "locales": locales
-                  }
-        
-        def render(portlet, mode=Portlet.RenderMode.View, 
-                   window_state=Portlet.WindowState.Normal, 
-                   locales=[], **kwargs):
-            """
-            The render portlet function made availble to the template engine.
-            It fires the :class:`RenderPortlet` event and waits for the
-            result to become available.
-            """
-            evt = RenderPortlet(mode, window_state, locales, 
-                                self._ugFactory, **kwargs)
-            evt.success_channels = [self.channel]
-            self.fire(evt, portlet.channel)
-            evt.sync = Semaphore(0)
-            evt.sync.acquire()
-            return evt.value.value 
-        # Render the template.
-        req_evt.portal_response = serve_tenjin \
-            (self.engine, request, response, "portal.pyhtml", 
-             context, type="text/html", 
-             globexts = { "_": portal_translation.ugettext , "render": render})
 
+        _translations_cache = dict()
 
+        def __init__(self, dispatcher, req_evt, request, response):
+            super(PortalDispatcher._RenderThread, self).__init__()
+            self._dispatcher = dispatcher
+            self._req_evt = req_evt
+            self._request = request
+            self._response = response
+            self._theme = ThemeSelection.selected()
+            self._locales = LanguagePreferences.preferred()
+            lang_hash = ";".join(self._locales)
+            self._translation = self._translations_cache.get\
+                ((self._theme, lang_hash))
+            if not self._translation:
+                last_dir = len(dispatcher._portal._templates_path) - 1
+                for i, d in enumerate(dispatcher._portal._templates_path):
+                    trans = rbtranslations.translation\
+                        ("l10n", d, self._locales, \
+                         key_language=("en" if i == last_dir else None))
+                    if not self._translation:
+                        self._translation = trans
+                    else:
+                        self._translation.add_fallback(trans)
+                self._translations_cache[(self._theme, lang_hash)] \
+                    = self._translation
+
+        def run(self):
+            portal = self._dispatcher._portal
+            context = { "portlets": portal.portlets,
+                        "tabs": portal.tabs,
+                        "theme": self._theme,
+                        "locales": self._locales
+                      }
+            
+            def render(portlet, mode=Portlet.RenderMode.View, 
+                       window_state=Portlet.WindowState.Normal, 
+                       locales=[], **kwargs):
+                """
+                The render portlet function made availble to the template 
+                engine. It fires the :class:`RenderPortlet` event and waits
+                for the result to become available.
+                """
+                evt = RenderPortlet(mode, window_state, locales, 
+                                    self._dispatcher._ugFactory, **kwargs)
+                evt.success_channels = [self._dispatcher.channel]
+                self._dispatcher.fire(evt, portlet.channel)
+                evt.sync = Semaphore(0)
+                evt.sync.acquire()
+                return evt.value.value 
+            # Render the template.
+            self._req_evt.portal_response = serve_tenjin \
+                (self._dispatcher._engine, self._request, self._response,
+                 "portal.pyhtml", context, type="text/html", 
+                 globexts = { "_": self._translation.ugettext,
+                              "render": render})
+    
     @handler("render_portlet_success")
     def _render_portlet_success (self, e, *args, **kwargs):
         e.sync.release()
-    
+
+                
