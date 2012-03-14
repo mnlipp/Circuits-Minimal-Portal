@@ -172,7 +172,8 @@ class TemplatePortlet(Portlet):
         self._name = name
 
     def _do_render(self, mode, window_state, locales, url_generator, 
-                   context_exts = {}, globs_exts = {}, **kwargs):
+                   key_language="en", context_exts = {}, globs_exts = {},
+                   **kwargs):
         theme = kwargs.get("theme", "default")
         theme_path = os.path.join(self._template_dir, "themes", theme)
         if not os.path.exists(theme_path):
@@ -188,9 +189,11 @@ class TemplatePortlet(Portlet):
         translation = self._translations.get((theme, lang_hash), None)
         if not translation:
             translation = rbtranslations.translation\
-                (self._name + "-l10n", theme_path, locales)
+                (self._name + "-l10n", theme_path, locales,
+                 key_language=key_language)
             translation.add_fallback(rbtranslations.translation\
-                (self._name + "-l10n", self._template_dir, locales))
+                (self._name + "-l10n", self._template_dir, locales,
+                 key_language=key_language))
             self._translations[(theme, lang_hash)] = translation
         # Prepare context
         context = { "mode": mode, "window_state": window_state,

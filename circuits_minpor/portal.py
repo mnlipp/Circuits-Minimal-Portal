@@ -65,7 +65,8 @@ class Portal(BaseComponent):
         return translation("l10n", 
                            os.path.join(cls._themes_dir, 
                                         ThemeSelection.selected()),
-                                        LanguagePreferences.preferred())
+                                        LanguagePreferences.preferred(),
+                           key_language="en")
         
     @handler("registered", channel="*")
     def _on_registered(self, c, m):
