@@ -35,7 +35,9 @@ class HelloWorldPortlet(TemplatePortlet):
         self._show_world = True
 
     def description(self, locales=[]):
-        return Portlet.Description(self._handle, "Hello World Portlet")
+        return Portlet.Description\
+            (self._handle, "Hello World Portlet", 
+             events=[(ToggleWorld, self.channel)])
 
     @handler("toggle_world")
     def _on_toggle(self, *args, **kwargs):

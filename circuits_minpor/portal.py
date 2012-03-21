@@ -37,6 +37,7 @@ import rbtranslations
 import urllib
 import sys
 import logging
+from circuits.core.utils import uncamel
 
 class Portal(BaseComponent):
     """
@@ -99,13 +100,14 @@ class Portal(BaseComponent):
         PortalDispatcher(self, channel = server.channel).register(server)
             
         self._tabs = [_TabInfo("Overview", "_dashboard", selected=True)]
-        
+
     @handler("registered", channel="*")
     def _on_registered(self, c, m):
         if not isinstance(c, Portlet):
             return
         if not c in self._portlets:
             self._portlets.append(c)
+            self._enabled_events_changed = True
 
     @handler("unregistered")
     def _on_unregistered(self, c, m):
@@ -113,6 +115,7 @@ class Portal(BaseComponent):
             return
         if c in self._portlets:
             self._portlets.remove(c)
+            self._enabled_events_changed = True
 
     @property
     def prefix(self):
@@ -213,6 +216,7 @@ class PortalDispatcher(BaseComponent):
     requests directed at a portet.
     """
     _waiting_for_event_complete = False
+    _enabled_events = None
 
     class _UGFactory(Portlet.UrlGeneratorFactory):
         
@@ -254,6 +258,18 @@ class PortalDispatcher(BaseComponent):
         self._portal_prefix = portal.prefix
         self._portal_path = "/" if portal.prefix == "" else portal.prefix
         self._ugFactory = PortalDispatcher._UGFactory(portal.prefix)
+
+    @handler("registered", channel="*")
+    def _on_registered(self, c, m):
+        if not isinstance(c, Portlet):
+            return
+        self._enabled_events = None
+
+    @handler("unregistered")
+    def _on_unregistered(self, c, m):
+        if not isinstance(c, Portlet):
+            return
+        self._enabled_events = None
 
     def is_portal_request(self, request):
         return request.path == self._portal_path \
@@ -357,6 +373,8 @@ class PortalDispatcher(BaseComponent):
                        .encode("iso-8859-1"), "utf-8").split("/")
         evt_class = urllib.unquote(segs[0])
         channel = urllib.unquote(segs[1])
+        if not self._check_event(evt_class, channel):
+            return None
         try:
             names = evt_class.split(".")
             clazz = reduce(getattr, names[1:], sys.modules[names[0]])
@@ -364,7 +382,6 @@ class PortalDispatcher(BaseComponent):
             self.fire(Log(logging.ERROR, 
                           "Unknown event class in event URL: " + evt_class))
             return None
-        # TODO: Test if allowed
         try:
             if event.kwargs:
                 evnt = clazz(**event.kwargs)
@@ -377,6 +394,23 @@ class PortalDispatcher(BaseComponent):
         evnt.channels = (channel,)
         evnt.complete = True
         return evnt
+                
+    def _check_event(self, event_name, channel):
+        if not self._enabled_events:
+            self._enabled_events = dict()
+            for portlet in self._portal._portlets:
+                for clazz, chan in portlet.description().events:
+                    name = clazz.__module__ + "." + clazz.__name__
+                    if not self._enabled_events.has_key(name):
+                        self._enabled_events[name] = set()
+                    if self._enabled_events[name] == None:
+                        continue
+                    if chan == "*":
+                        self._enabled_events[name] = None
+                        continue
+                    self._enabled_events[name].add(chan)
+        chans = self._enabled_events.get(event_name, set())
+        return chans == None or channel in chans
                 
     class _RenderThread(Thread):
         """

@@ -87,13 +87,14 @@ class Portlet(BaseComponent):
 
     class Description(object):
         def __init__(self, handle, short_title, title = None,  
-                     markup_types=None, locale = "en-US"):
+                     markup_types=None, locale = "en-US", events = None):
             self._handle = handle
             self._short_title = short_title
             self._title = title or short_title
             self._markup_types = markup_types \
                 or dict({ "text/html": Portlet.MarkupType()})
             self._locale = locale
+            self._events = events
 
         @property
         def short_title(self):
@@ -114,6 +115,10 @@ class Portlet(BaseComponent):
         @property
         def locale(self):
             return self._locale
+        
+        @property
+        def events(self):
+            return self._events
 
     class UrlGenerator(object):
         
