@@ -29,10 +29,14 @@ from copy import copy
 from circuits_minpor.portlet import Portlet, RenderPortlet
 from circuits_minpor.utils import serve_tenjin
 from circuits_bricks.web.filters import LanguagePreferences, ThemeSelection
+from circuits_bricks.app.logger import Log
 from circuits.web.sessions import Sessions
 from circuits.web.utils import parse_qs, parse_body
 from threading import Thread, Semaphore
 import rbtranslations
+import urllib
+import sys
+import logging
 
 class Portal(BaseComponent):
     """
@@ -131,8 +135,12 @@ class Portal(BaseComponent):
         return getattr(self, "_theme", "default")
 
     def select_tab(self, tab_id):
+        found = False
         for tab in self._tabs:
             tab._selected = (id(tab) == tab_id)
+            found = True
+        if not found:
+            self._tabs[0].selected = True
 
     def close_tab(self, tab_id):
         tabs = filter(lambda x: id(x) == tab_id, self._tabs)
@@ -204,6 +212,7 @@ class PortalDispatcher(BaseComponent):
     for a portal resource, action requests directed at a portlet and resource
     requests directed at a portet.
     """
+    _waiting_for_event_complete = False
 
     class _UGFactory(Portlet.UrlGeneratorFactory):
         
@@ -215,14 +224,22 @@ class PortalDispatcher(BaseComponent):
             def __init__(self, prefix, portlet):
                 self._prefix = prefix
                 self._handle = portlet.description().handle
+                self._channel = portlet.channel
         
-            def action_url(self, event):
-                return "#"
-    
+            def event_url(self, event_name, channel=None, **kwargs):
+                if not channel:
+                    channel = self._channel
+                return (self._prefix + "/event/" 
+                        + urllib.quote(event_name)
+                        + "/" + urllib.quote(channel)
+                        + ("" if len(kwargs) == 0 
+                           else "?" + urllib.urlencode(kwargs)))
+
             def resource_url(self, resource):
-                return self._prefix + "/portlet-resource/" + self._handle \
+                return self._prefix + "/portlet-resource/" \
+                    + urllib.quote(self._handle) \
                     + (resource if resource.startswith("/") \
-                                else ("/" + resource))
+                                else ("/" + urllib.quote(resource)))
     
         def make_generator(self, portlet):
             return self.UG(self._prefix, portlet)
@@ -234,9 +251,13 @@ class PortalDispatcher(BaseComponent):
         self._engine = tenjin.Engine(path=portal._templates_path)
         self._theme_resource = portal.prefix + "/theme-resource/"
         self._portlet_resource = portal.prefix + "/portlet-resource/"
+        self._portal_prefix = portal.prefix
         self._portal_path = "/" if portal.prefix == "" else portal.prefix
         self._ugFactory = PortalDispatcher._UGFactory(portal.prefix)
 
+    def is_portal_request(self, request):
+        return request.path == self._portal_path \
+            or request.path.startswith(self._portal_prefix + "/")
     
     @handler("request", filter=True, priority=0.1)
     def _on_request(self, event, request, response, peer_cert=None):
@@ -244,9 +265,16 @@ class PortalDispatcher(BaseComponent):
         First request handler. This handler handles resource requests
         directed at the portal or a portlet.
         """
+        if not self.is_portal_request(request):
+            return None
+
         if peer_cert:
             event.peer_cert = peer_cert
-        event.kwargs = parse_qs(request.qs)
+        # Decode query parameters
+        event.kwargs = dict()
+        for key, value in parse_qs(request.qs).items():
+            event.kwargs[unicode(key.encode("iso-8859-1"), "utf-8")] \
+                = unicode(value.encode("iso-8859-1"), "utf-8")
         parse_body(request, response, event.kwargs)
         # Is this a portal resource request?
         if request.path.startswith(self._theme_resource):
@@ -282,19 +310,33 @@ class PortalDispatcher(BaseComponent):
         the render method directly allows other components to intercept
         the requests as is usual in circuits.
         """
+        if not self.is_portal_request(request):
+            return
+        
         # Perform requested portal actions (state changes)
         self._perform_portal_actions(event.kwargs)
 
-        # Render portal
-        if request.path == self._portal_path:
-            event.portal_response = None
-            # See _render_portal_template for an explanation
-            # why we need another thread here. Pass any information
-            # that is thread local as addition parameters
-            self._RenderThread(self, event, request, response).start()
-            while not event.portal_response:
+        # Perform requested events
+        evt = self._requested_event(event, request, response)
+        if evt:
+            self._requested_done = False
+            @handler("%s_complete" % evt.name, channel=evt.channels[0])
+            def _on_complete(dispatcher, e, value):
+                self._requested_done = True
+            self.addHandler(_on_complete)
+            self.fireEvent(evt)
+            while not self._requested_done:
                 yield None
-            yield event.portal_response
+
+        # Render portal
+        event.portal_response = None
+        # See _render_portal_template for an explanation
+        # why we need another thread here. Pass any information
+        # that is thread local as addition parameters
+        self._RenderThread(self, event, request, response).start()
+        while not event.portal_response:
+            yield None
+        yield event.portal_response
 
     def _perform_portal_actions(self, kwargs):
         """
@@ -307,6 +349,34 @@ class PortalDispatcher(BaseComponent):
         elif kwargs.get("action") == "solo":
             self._portal.add_solo(kwargs.get("portlet"))
 
+    def _requested_event(self, event, request, response):
+        if not request.path.startswith(self._portal_prefix + "/event/"):
+            return None
+        segs = unicode(urllib.unquote\
+                       (request.path[len(self._portal_prefix + "/event/"):])
+                       .encode("iso-8859-1"), "utf-8").split("/")
+        evt_class = urllib.unquote(segs[0])
+        channel = urllib.unquote(segs[1])
+        try:
+            names = evt_class.split(".")
+            clazz = reduce(getattr, names[1:], sys.modules[names[0]])
+        except AttributeError:
+            self.fire(Log(logging.ERROR, 
+                          "Unknown event class in event URL: " + evt_class))
+            return None
+        # TODO: Test if allowed
+        try:
+            if event.kwargs:
+                evnt = clazz(**event.kwargs)
+            else:
+                evnt = clazz()
+        except Exception as e:
+            self.fire(Log(logging.ERROR, 
+                          "Cannot create event: " + str(sys.exc_info()[1])))
+            return None
+        evnt.channels = (channel,)
+        evnt.complete = True
+        return evnt
                 
     class _RenderThread(Thread):
         """
@@ -374,10 +444,16 @@ class PortalDispatcher(BaseComponent):
                 evt.sync.acquire()
                 return evt.value.value 
             # Render the template.
+            def portal_action_url(action, **kwargs):
+                kwargs["action"] = action
+                return (self._dispatcher._portal_path + "?"
+                        + urllib.urlencode(kwargs))
+                        
             self._req_evt.portal_response = serve_tenjin \
                 (self._dispatcher._engine, self._request, self._response,
                  "portal.pyhtml", context, type="text/html", 
                  globexts = { "_": self._translation.ugettext,
+                              "portal_action_url": portal_action_url,
                               "resource_url": (lambda x: portal.prefix + "/" + x),
                               "render": render})
     

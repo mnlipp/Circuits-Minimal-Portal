@@ -117,7 +117,7 @@ class Portlet(BaseComponent):
 
     class UrlGenerator(object):
         
-        def action_url(self, event):
+        def event_url(self, event_name, **kwargs):
             return "#"
 
         def resource_url(self, resource):
@@ -181,13 +181,14 @@ class TemplatePortlet(Portlet):
             (self._name + "-l10n", self._template_dir, locales,
              key_language=key_language)
         # Prepare context
-        context = { "mode": mode, "window_state": window_state,
+        context = { "portlet": self,
+                    "mode": mode, "window_state": window_state,
                     "theme": theme, "locales": locales }
         context.update(context_exts)
         # Prepare globals
         globs = tenjin.helpers.__dict__
         globs.update({ "_": translation.ugettext,
-                       "action_url": url_generator.action_url,
+                       "event_url": url_generator.event_url,
                        "resource_url": url_generator.resource_url })
         return self._engine.render(self._name + ".pyhtml",  
                                    context = context, globals = globs)

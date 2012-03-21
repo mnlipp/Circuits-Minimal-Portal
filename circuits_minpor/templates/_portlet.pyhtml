@@ -7,7 +7,7 @@
     </span>
     <div class="widgetButtons">
       <span class="widgetButton">
-        <a href="?portlet={= desc.handle =}&action=solo"><img src="{== resource_url("theme-resource/fullscreen.png") ==}"></a>
+        <a href="{== portal_action_url("solo", portlet=desc.handle) ==}"><img src="{== resource_url("theme-resource/fullscreen.png") ==}"></a>
       </span>
     </div>
   </div>

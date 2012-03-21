@@ -20,6 +20,11 @@
 """
 from circuits_minpor.portlet import TemplatePortlet, Portlet
 import os
+from circuits.core.events import Event
+from circuits.core.handlers import handler
+
+class ToggleWorld(Event):
+    pass
 
 class HelloWorldPortlet(TemplatePortlet):
 
@@ -27,6 +32,12 @@ class HelloWorldPortlet(TemplatePortlet):
         super(HelloWorldPortlet, self) \
             .__init__(os.path.join(os.path.dirname(__file__), "templates"), 
                       "helloworld", *args, **kwargs)
+        self._show_world = True
 
     def description(self, locales=[]):
         return Portlet.Description(self._handle, "Hello World Portlet")
+
+    @handler("toggle_world")
+    def _on_toggle(self, *args, **kwargs):
+        self._show_world = not self._show_world
+        
