@@ -141,9 +141,9 @@ class Portal(BaseComponent):
         found = False
         for tab in self._tabs:
             tab._selected = (id(tab) == tab_id)
-            found = True
+            found = found or tab._selected
         if not found:
-            self._tabs[0].selected = True
+            self._tabs[0]._selected = True
 
     def close_tab(self, tab_id):
         tabs = filter(lambda x: id(x) == tab_id, self._tabs)
@@ -335,14 +335,16 @@ class PortalDispatcher(BaseComponent):
         # Perform requested events
         evt = self._requested_event(event, request, response)
         if evt:
-            self._requested_done = False
+            self._waiting_for = evt
             @handler("%s_complete" % evt.name, channel=evt.channels[0])
             def _on_complete(dispatcher, e, value):
-                self._requested_done = True
+                if id(self._waiting_for) == id(e):
+                    self._waiting_for = None
             self.addHandler(_on_complete)
             self.fireEvent(evt)
-            while not self._requested_done:
+            while self._waiting_for:
                 yield None
+            self.removeHandler(_on_complete)
 
         # Render portal
         event.portal_response = None
