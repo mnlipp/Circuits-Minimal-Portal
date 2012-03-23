@@ -5,6 +5,19 @@ body {
   padding: 2pt;
 }
 
+.languageSelector {
+  position: absolute;
+  top: 5pt;
+  right: 8pt;
+}
+
+.title {
+  font-size: 150%;
+  font-weight: bold;
+  color: #E87500;
+  padding-bottom: 10pt;
+}
+
 .tabs {
   padding-top: 4pt;
   padding-bottom: 4pt;
@@ -25,6 +38,14 @@ body {
   text-decoration: none;
   color: #444;
   padding: 4pt 6pt 4pt 18pt;
+}
+
+.activeTab .tabLabel {
+  color: #E87500;
+}
+
+.tabLabel:hover {
+  color: #E87500;
 }
 
 .tab:hover {
@@ -54,7 +75,6 @@ body {
 }
 
 .activeTab {
-  color: #E87500;
   background: white;
   border-bottom: 1px solid white;
 }

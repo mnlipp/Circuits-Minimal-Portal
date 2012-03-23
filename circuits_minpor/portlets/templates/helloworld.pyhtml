@@ -7,7 +7,7 @@
     <?py #endif ?>
     <!-- World icon from http://apathae.deviantart.com/ -->
     </div>
-    <a href="{== event_url("circuits_minpor.portlets.helloworld.ToggleWorld", extra="äöü") ==}">Toggle world</a>
+    <a href="{== event_url("circuits_minpor.portlets.helloworld.ToggleWorld", extra="äöü") ==}">{= _("Toggle world") =}</a>
 <?py else: ?>
     <div style="padding: 1em;">{= _("Hello World!") =}
     <img style="vertical-align: bottom;" height="20" src="{== resource_url("globe.ico") ==}">

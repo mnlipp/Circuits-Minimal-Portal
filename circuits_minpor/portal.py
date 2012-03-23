@@ -98,6 +98,14 @@ class Portal(BaseComponent):
         LanguagePreferences(channel = server.channel).register(server)
         ThemeSelection(channel = server.channel).register(server)
         PortalDispatcher(self, channel = server.channel).register(server)
+        self._supported_locales = []
+        for locale in rbtranslations.available_translations\
+            ("l10n", self._templates_path, "en"):
+            trans = rbtranslations.translation\
+                ("l10n", self._templates_path, [locale], "en")
+            locale_name = trans.ugettext("language_" + locale)
+            self._supported_locales.append((locale, locale_name))
+        self._supported_locales.sort(key=lambda x: x[1])
             
         self._tabs = [_TabInfo("Overview", "_dashboard", selected=True)]
 
@@ -136,6 +144,10 @@ class Portal(BaseComponent):
     @property
     def theme(self):
         return getattr(self, "_theme", "default")
+
+    @property
+    def supported_locales(self):
+        return getattr(self, "_supported_locales", [])
 
     def select_tab(self, tab_id):
         found = False
@@ -330,7 +342,7 @@ class PortalDispatcher(BaseComponent):
             return
         
         # Perform requested portal actions (state changes)
-        self._perform_portal_actions(event.kwargs)
+        self._perform_portal_actions(request, event.kwargs)
 
         # Perform requested events
         evt = self._requested_event(event, request, response)
@@ -356,15 +368,21 @@ class PortalDispatcher(BaseComponent):
             yield None
         yield event.portal_response
 
-    def _perform_portal_actions(self, kwargs):
+    def _perform_portal_actions(self, request, kwargs):
         """
         Perform any requested changes of the portal state.
         """
-        if kwargs.get("action") == "select":
+        if not request.path.startswith(self._portal._prefix + "/action/"):
+            return
+        action = request.path[len(self._portal._prefix + "/action/"):]
+        if action == "language":
+            LanguagePreferences\
+                .override_accept(request.session, [kwargs["language"]])
+        elif action == "select":
             self._portal.select_tab(int(kwargs.get("tab")))
-        elif kwargs.get("action") == "close":
+        elif action == "close":
             self._portal.close_tab(int(kwargs.get("tab")))
-        elif kwargs.get("action") == "solo":
+        elif action == "solo":
             self._portal.add_solo(kwargs.get("portlet"))
 
     def _requested_event(self, event, request, response):
@@ -429,8 +447,6 @@ class PortalDispatcher(BaseComponent):
         back to the template processor using the semaphore.
         """
 
-        _translations_cache = dict()
-
         def __init__(self, dispatcher, req_evt, request, response):
             super(PortalDispatcher._RenderThread, self).__init__()
             self._dispatcher = dispatcher
@@ -439,27 +455,13 @@ class PortalDispatcher(BaseComponent):
             self._response = response
             self._theme = ThemeSelection.selected()
             self._locales = LanguagePreferences.preferred()
-            lang_hash = ";".join(self._locales)
-            self._translation = self._translations_cache.get\
-                ((self._theme, lang_hash))
-            if not self._translation:
-                last_dir = len(dispatcher._portal._templates_path) - 1
-                for i, d in enumerate(dispatcher._portal._templates_path):
-                    trans = rbtranslations.translation\
-                        ("l10n", d, self._locales, \
-                         key_language=("en" if i == last_dir else None))
-                    if not self._translation:
-                        self._translation = trans
-                    else:
-                        self._translation.add_fallback(trans)
-                self._translations_cache[(self._theme, lang_hash)] \
-                    = self._translation
+            self._translation = rbtranslations.translation\
+                ("l10n", dispatcher._portal._templates_path, 
+                 self._locales, "en")
 
         def run(self):
             portal = self._dispatcher._portal
-            context = { "title": portal.title,
-                        "portlets": portal.portlets,
-                        "tabs": portal.tabs,
+            context = { "portal": portal,
                         "theme": self._theme,
                         "locales": self._locales
                       }
@@ -481,9 +483,9 @@ class PortalDispatcher(BaseComponent):
                 return evt.value.value 
             # Render the template.
             def portal_action_url(action, **kwargs):
-                kwargs["action"] = action
-                return (self._dispatcher._portal_path + "?"
-                        + urllib.urlencode(kwargs))
+                return (self._dispatcher._portal_prefix
+                        + "/action/" + urllib.quote(action)
+                        + (("?" + urllib.urlencode(kwargs)) if kwargs else ""))
                         
             self._req_evt.portal_response = serve_tenjin \
                 (self._dispatcher._engine, self._request, self._response,

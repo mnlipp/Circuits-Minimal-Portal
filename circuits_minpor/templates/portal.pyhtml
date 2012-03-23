@@ -1,8 +1,8 @@
-<?py #@ARGS title, portlets, tabs, theme, locales ?>
+<?py #@ARGS portal, theme, locales ?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-  <title>{= title =}</title>
+  <title>{= _(portal.title) =}</title>
   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
   <meta name="description" content="This is ...">
   <link rel="shortcut icon" href="{== resource_url("theme-resource/favicon.ico") ==}"> 
@@ -10,8 +10,33 @@
 </head>
 
 <body>
+  <div class="languageSelector">
+    <?py selected = None ?>
+    <?py for l1 in locales: ?>
+    <?py   for l2 in portal.supported_locales: ?>
+    <?py     if l1 == l2[0]: ?>
+    <?py       selected = l1 ?>
+    <?py       break ?>
+    <?py     #endif ?>
+    <?py   #endfor ?>
+    <?py   if selected: ?>
+    <?py     break ?>
+    <?py   #endif ?>
+    <?py #endfor ?>
+    <form action="{== portal_action_url("language") ==}" method="get">
+      <select name="language" onchange="this.form.submit()">
+        <?py for locale, name in portal.supported_locales: ?>
+        <option value="{== locale ==}"{== " selected" if locale == selected else "" ==}>{= name =}</option>
+        <?py #endfor ?>
+      </select>
+      <noscript style="inline"><input type="submit" value="{= _("Select") =}"></noscript>
+    </form>
+  </div>
+  
+  <div class="title">{= _(portal.title) =}</div>
+
   <div class="tabs">
-  <?py for tab in tabs: ?>
+  <?py for tab in portal.tabs: ?>
   <?py   if tab.selected: ?>
   <?py     selected=tab ?>
   <?py   #endif ?>
@@ -20,7 +45,7 @@
   </div>
   <div class="page">
     <?py include(selected.content_renderer + ".pyhtml", tab=selected, 
-                 portlets=portlets, locales=locales) ?>    
+                 portlets=portal.portlets, locales=locales) ?>    
   </div>
 </body>
 </html>
