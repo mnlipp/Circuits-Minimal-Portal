@@ -1,3 +1,4 @@
+<?py from circuits_minpor import Portlet ?>
 <?py #@ARGS portal, theme, locales ?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
@@ -10,6 +11,17 @@
 </head>
 
 <body>
+<?py if portal.configuring != None: ?>
+  <div id="overlay"></div>
+  <div id="overlaybody">
+    <div id="overlaypage">
+      <div class="widgetBody portlet-font">
+        {== render(portal.configuring, mode=Portlet.RenderMode.Edit, window_state=Portlet.WindowState.Maximized, locales=locales) ==}
+      </div>
+    </div>
+  </div>
+<?py #endif ?>
+
   <div class="languageSelector">
     <?py selected = None ?>
     <?py for l1 in locales: ?>
@@ -36,12 +48,16 @@
   <div class="title">{= _(portal.title) =}</div>
 
   <div class="tabs">
-  <?py for tab in portal.tabs: ?>
+<span class="{= "tab" + (" activeTab" if portal.tabs[0].selected else "") 
+              =}"><a class="tabLabel" href="{== portal_action_url("select", tab=id(portal.tabs[0])) ==}">{= _("Overview") =}</a><span style="padding-right: 16px;"></span></span>
+  <?py selected = portal.tabs[0] ?>
+  <?py for tab in portal.tabs[1:]: ?>
   <?py   if tab.selected: ?>
   <?py     selected=tab ?>
   <?py   #endif ?>
+  <?py portlet_desc = tab.portlet.description(locales) ?>
 <span class="{= "tab" + (" activeTab" if tab.selected else "") 
-             + (" closableTab" if tab.closeable else "") =}"><a class="tabLabel" href="{== portal_action_url("select", tab=id(tab)) ==}">{= _(tab.label) =}</a><a class="tabCloser" href="{== portal_action_url("close", tab=id(tab)) ==}"><img src="{== resource_url("theme-resource/close-tab-active.png") ==}"></a></span><?py #endfor ?>
+             + (" closableTab" if tab.closeable else "") =}"><a class="tabLabel" href="{== portal_action_url("select", tab=id(tab)) ==}">{= portlet_desc.short_title =}</a><a class="tabCloser" href="{== portal_action_url("close", tab=id(tab)) ==}"><img src="{== resource_url("theme-resource/close-tab-active.png") ==}"></a></span><?py #endfor ?>
   </div>
   <div class="page">
     <?py include(selected.content_renderer + ".pyhtml", tab=selected, 

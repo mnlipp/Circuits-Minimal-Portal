@@ -37,7 +37,6 @@ import rbtranslations
 import urllib
 import sys
 import logging
-from circuits.core.utils import uncamel
 
 class Portal(BaseComponent):
     """
@@ -107,7 +106,7 @@ class Portal(BaseComponent):
             self._supported_locales.append((locale, locale_name))
         self._supported_locales.sort(key=lambda x: x[1])
             
-        self._tabs = [_TabInfo("Overview", "_dashboard", selected=True)]
+        self._tabs = [_TabInfo("_dashboard", selected=True)]
 
     @handler("registered", channel="*")
     def _on_registered(self, c, m):
@@ -149,6 +148,17 @@ class Portal(BaseComponent):
     def supported_locales(self):
         return getattr(self, "_supported_locales", [])
 
+    @property
+    def configuring(self):
+        return getattr(self, "_configuring", None)
+
+    def portlet_by_handle(self, portlet_handle):
+        for portlet in self._portlets:
+            portlet_desc = portlet.description()
+            if portlet_desc.handle == portlet_handle:
+                return portlet
+        return None
+
     def select_tab(self, tab_id):
         found = False
         for tab in self._tabs:
@@ -170,30 +180,21 @@ class Portal(BaseComponent):
             else:
                 self._tabs[0]._selected = True
 
-    def add_solo(self, portlet_handle):
-        for portlet in self._portlets:
-            portlet_desc = portlet.description()
-            if portlet_desc.handle == portlet_handle:
-                break
-            else:
-                portlet_desc = None
-        if not portlet_desc:
-            return
+    def add_solo(self, portlet):
         solo_tabs = filter(lambda x: x.portlet == portlet, self._tabs)
         if len(solo_tabs) > 0:
             self.select_tab(id(solo_tabs[0]))
             return
-        tab = _TabInfo(portlet_desc.short_title, "_solo", closeable=True,
-                       portlet=portlet)
+        portlet_desc = portlet.description()
+        tab = _TabInfo("_solo", closeable=True, portlet=portlet)
         self._tabs.append(tab)
         self.select_tab(id(tab))
 
 
 class _TabInfo(object):
     
-    def __init__(self, label, renderer, selected = False, closeable=False,
+    def __init__(self, renderer, selected = False, closeable=False,
                  portlet=None):
-        self._label = label
         self._content_renderer = renderer
         self._selected = selected
         self._closeable = closeable
@@ -242,11 +243,15 @@ class PortalDispatcher(BaseComponent):
                 self._handle = portlet.description().handle
                 self._channel = portlet.channel
         
-            def event_url(self, event_name, channel=None, **kwargs):
+            def event_url(self, event_name, channel=None, 
+                          portlet_mode="_", portlet_window_state="_",
+                          **kwargs):
                 if not channel:
                     channel = self._channel
-                return (self._prefix + "/event/" 
-                        + urllib.quote(event_name)
+                url = self._prefix + "/" + self._handle
+                if portlet_mode != "_" or portlet_window_state != "_":
+                    url += "/" + portlet_mode + "/" + portlet_window_state
+                return (url + "/event/"+ urllib.quote(event_name)
                         + "/" + urllib.quote(channel)
                         + ("" if len(kwargs) == 0 
                            else "?" + urllib.urlencode(kwargs)))
@@ -337,27 +342,49 @@ class PortalDispatcher(BaseComponent):
         its result. Using :class:`RenderRequest` events instead of invoking
         the render method directly allows other components to intercept
         the requests as is usual in circuits.
+        
+        The URLs carry most information in the path in order to
+        be usable as form action URLs without problems. The format is
+        ``/{"portal" or portlet handle}[/{new portlet mode or _}/{new portlet state or _}]``
+        If the portlet is to perform an action as part of the request, the
+        above is followed by 
+        ``/event/{event class name}/{channel }``.
         """
         if not self.is_portal_request(request):
             return
         
-        # Perform requested portal actions (state changes)
-        self._perform_portal_actions(request, event.kwargs)
+        path_segs = unicode(urllib.unquote\
+                            (request.path[len(self._portal_prefix)+1:])
+                            .encode("iso-8859-1"), "utf-8").split("/")
+        portlet = None
+        if path_segs[0] != '':
+            if path_segs[0] == "portal":
+                # Perform requested portal actions
+                self._perform_portal_actions(request, path_segs, event.kwargs)
+            else:
+                portlet = self._portal.portlet_by_handle(path_segs[0])
+                if portlet != None:
+                    del path_segs[0]
 
-        # Perform requested events
-        evt = self._requested_event(event, request, response)
-        if evt:
-            self._waiting_for = evt
-            @handler("%s_complete" % evt.name, channel=evt.channels[0])
-            def _on_complete(dispatcher, e, value):
-                if id(self._waiting_for) == id(e):
-                    self._waiting_for = None
-            self.addHandler(_on_complete)
-            self.fireEvent(evt)
-            while self._waiting_for:
-                yield None
-            self.removeHandler(_on_complete)
 
+        if portlet != None:
+            # Perform requested portlet state changes
+            self._perform_portlet_state_changes(portlet, path_segs)
+            # Get requested events
+            evt = self._requested_event(path_segs, event, request, response)
+            
+            if evt:
+                self._waiting_for = evt
+                @handler("%s_complete" % evt.name, channel=evt.channels[0])
+                def _on_complete(dispatcher, e, value):
+                    if id(self._waiting_for) == id(e):
+                        self._waiting_for = None
+                self.addHandler(_on_complete)
+                self.fireEvent(evt)
+                while self._waiting_for:
+                    yield None
+                self.removeHandler(_on_complete)
+    
         # Render portal
         event.portal_response = None
         # See _render_portal_template for an explanation
@@ -368,13 +395,11 @@ class PortalDispatcher(BaseComponent):
             yield None
         yield event.portal_response
 
-    def _perform_portal_actions(self, request, kwargs):
+    def _perform_portal_actions(self, request, path_segs, kwargs):
         """
         Perform any requested changes of the portal state.
         """
-        if not request.path.startswith(self._portal._prefix + "/action/"):
-            return
-        action = request.path[len(self._portal._prefix + "/action/"):]
+        action = path_segs[1]
         if action == "language":
             LanguagePreferences\
                 .override_accept(request.session, [kwargs["language"]])
@@ -382,17 +407,24 @@ class PortalDispatcher(BaseComponent):
             self._portal.select_tab(int(kwargs.get("tab")))
         elif action == "close":
             self._portal.close_tab(int(kwargs.get("tab")))
-        elif action == "solo":
-            self._portal.add_solo(kwargs.get("portlet"))
 
-    def _requested_event(self, event, request, response):
-        if not request.path.startswith(self._portal_prefix + "/event/"):
+    def _perform_portlet_state_changes(self, portlet, path_segs):
+        if len(path_segs) < 2 or path_segs[0] == "event":
+            return
+        mode = path_segs[0]
+        window_state = path_segs[1]
+        del path_segs[0:1]
+        if mode == "edit":
+            self._portal._configuring = portlet
+        if window_state == "solo":
+            self._portal.add_solo(portlet)
+
+    def _requested_event(self, path_segs, event, request, response):
+        if len(path_segs) < 3 or path_segs[0] != "event":
             return None
-        segs = unicode(urllib.unquote\
-                       (request.path[len(self._portal_prefix + "/event/"):])
-                       .encode("iso-8859-1"), "utf-8").split("/")
-        evt_class = urllib.unquote(segs[0])
-        channel = urllib.unquote(segs[1])
+        evt_class = path_segs[1]
+        channel = path_segs[2]
+        del path_segs[0:2]
         if not self._check_event(evt_class, channel):
             return None
         try:
@@ -407,7 +439,7 @@ class PortalDispatcher(BaseComponent):
                 evnt = clazz(**event.kwargs)
             else:
                 evnt = clazz()
-        except Exception as e:
+        except Exception:
             self.fire(Log(logging.ERROR, 
                           "Cannot create event: " + str(sys.exc_info()[1])))
             return None
@@ -470,7 +502,7 @@ class PortalDispatcher(BaseComponent):
                        window_state=Portlet.WindowState.Normal, 
                        locales=[], **kwargs):
                 """
-                The render portlet function made availble to the template 
+                The render portlet function made available to the template 
                 engine. It fires the :class:`RenderPortlet` event and waits
                 for the result to become available.
                 """
@@ -484,14 +516,18 @@ class PortalDispatcher(BaseComponent):
             # Render the template.
             def portal_action_url(action, **kwargs):
                 return (self._dispatcher._portal_prefix
-                        + "/action/" + urllib.quote(action)
+                        + "/portal/" + urllib.quote(action)
                         + (("?" + urllib.urlencode(kwargs)) if kwargs else ""))
+            def portlet_state_url(portlet_handle, mode="_", window="_"):
+                return (self._dispatcher._portal_prefix
+                        + "/" + portlet_handle + "/" + mode + "/" + window)
                         
             self._req_evt.portal_response = serve_tenjin \
                 (self._dispatcher._engine, self._request, self._response,
                  "portal.pyhtml", context, type="text/html", 
                  globexts = { "_": self._translation.ugettext,
                               "portal_action_url": portal_action_url,
+                              "portlet_state_url": portlet_state_url,
                               "resource_url": (lambda x: portal.prefix + "/" + x),
                               "render": render})
     

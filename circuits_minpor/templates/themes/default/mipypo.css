@@ -110,7 +110,8 @@ body {
   -webkit-border-radius: 4px 4px 0 0;
   width: 100%;
   font-weight: bold;
-  padding-bottom: 4px;
+  padding-top: 3px;
+  padding-bottom: 3px;
 }
 
 .widgetTitle:hover {
@@ -121,7 +122,7 @@ body {
 .widgetButtons {
   display: none;
   float: right;
-  padding-top: 0.3em;
+  padding-top: 0.2em;
   margin-right: 0.3em;
 }
 
@@ -138,7 +139,39 @@ div.widgetTitle:hover .widgetButtons {
 }
 
 .widgetBody {
+  padding: 0.5em;
 }
+
+#overlay {
+    z-index: 1000;
+    filter: alpha(opacity=50); /*older IE*/
+    filter:progid:DXImageTransform.Microsoft.Alpha(opacity=50); /* IE */
+    -moz-opacity: .50; /*older Mozilla*/
+    -khtml-opacity: 0.5;   /*older Safari*/
+    opacity: 0.5;   /*supported by current Mozilla, Safari, and Opera*/
+    background-color:#000000;
+    position:fixed; top:0px; left:0px; width:100%; height:100%;
+}
+
+#overlaybody {
+    z-index: 1100;
+    position:fixed; top:0px; left:0px; width:100%; height:100%;
+    text-align:center;
+}
+
+#overlaypage {
+    display: inline-block;
+    vertical-align: middle;
+    border-radius: 4px;
+    -moz-border-radius: 4px;
+    -webkit-border-radius: 4px;
+    background-color: white; 
+    margin-top: 50px;
+    min-width: 20%;
+    min-height: 20%;
+    text-align:left;
+}
+
 
 <%--***********************************************************************--%>
 <%-- Portlets SHOULD use the CSS style definitions from this specification --%>

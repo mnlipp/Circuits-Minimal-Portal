@@ -1,7 +1,7 @@
 <?py #@ARGS portlet, mode, window_state, theme, locales ?>
 <?py from circuits_minpor import Portlet ?>
 <?py if window_state == Portlet.WindowState.Solo: ?>
-    <div style="padding: 1em; font-size: 400%">{= _("Hello World!") =}
+    <div style="font-size: 400%">{= _("Hello World!") =}
     <?py if portlet._show_world: ?>
     <img style="vertical-align: bottom;" src="{== resource_url("globe.ico") ==}">
     <?py #endif ?>
@@ -9,7 +9,7 @@
     </div>
     <a href="{== event_url("circuits_minpor.portlets.helloworld.ToggleWorld", extra="äöü") ==}">{= _("Toggle world") =}</a>
 <?py else: ?>
-    <div style="padding: 1em;">{= _("Hello World!") =}
+    <div>{= _("Hello World!") =}
     <img style="vertical-align: bottom;" height="20" src="{== resource_url("globe.ico") ==}">
     <!-- World icon from http://apathae.deviantart.com/ -->
     </div>

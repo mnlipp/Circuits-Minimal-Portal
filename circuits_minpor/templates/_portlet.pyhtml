@@ -7,7 +7,8 @@
     </span>
     <div class="widgetButtons">
       <span class="widgetButton">
-        <a href="{== portal_action_url("solo", portlet=desc.handle) ==}"><img src="{== resource_url("theme-resource/fullscreen.png") ==}"></a>
+        <a title="{= _("Show in tab") =}" href="{== portlet_state_url(desc.handle, window="solo") ==}"><img src="{== resource_url("theme-resource/fullscreen.png") ==}"></a> 
+        <a title="{= _("Configure") =}" href="{== portlet_state_url(desc.handle, mode="edit") ==}"><img src="{== resource_url("theme-resource/edit.png") ==}"></a>
       </span>
     </div>
   </div>
