@@ -13,11 +13,10 @@
 <body>
 <?py if portal_view.configuring != None: ?>
   <div id="overlay"></div>
-  <div id="overlaybody">
-    <div id="overlaypage">
-      <div class="widgetBody portlet-font">
-        {== render(portal_view.configuring, mode=Portlet.RenderMode.Edit, window_state=Portlet.WindowState.Maximized, locales=locales) ==}
-      </div>
+  <div id="overlayBody">
+    <div id="overlayPage">
+    <?py include("_portlet_edited.pyhtml", 
+                 portlet=portal_view.configuring, locales=locales) ?>    
     </div>
   </div>
 <?py #endif ?>

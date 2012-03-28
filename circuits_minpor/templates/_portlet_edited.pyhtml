@@ -1,0 +1,17 @@
+<?py #@ARGS portlet, locales ?>
+<?py desc = portlet.description(locales=locales) ?>
+<div class="widget">
+  <div class="widgetTitle">
+    <span class="widgetLabel">
+      {= desc.title =}
+    </span>
+    <span class="widgetButtonsStatic">
+      <span class="widgetButton">
+        <a title="{= _("Close") =}" href="{== portal_action_url("finish-editing") ==}"><img src="{== resource_url("theme-resource/finish-editing.png") ==}"></a> 
+      </span>
+    </span>
+  </div>
+  <div class="widgetBody portlet-font">
+    {== render(portlet, locales=locales) ==}
+  </div>
+</div>

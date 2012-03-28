@@ -96,11 +96,14 @@ body {
 .widget {
   background: white;
   border: 1px solid #BBB6AD;
-  margin: 10pt 8pt;
   overflow: hidden;
   border-radius: 4px;
   -moz-border-radius: 4px;
   -webkit-border-radius: 4px;
+}
+
+.widgetBorder {
+  margin: 10pt 8pt;
 }
 
 .widgetTitle {
@@ -112,6 +115,7 @@ body {
   font-weight: bold;
   padding-top: 3px;
   padding-bottom: 3px;
+  padding-right: 16px;
 }
 
 .widgetTitle:hover {
@@ -128,6 +132,12 @@ body {
 
 div.widgetTitle:hover .widgetButtons {
   display: inline;
+}
+
+.widgetButtonsStatic {
+  float: right;
+  padding-top: 0.2em;
+  margin-right: 0.3em;
 }
 
 .widgetLabel {
@@ -153,13 +163,13 @@ div.widgetTitle:hover .widgetButtons {
     position:fixed; top:0px; left:0px; width:100%; height:100%;
 }
 
-#overlaybody {
+#overlayBody {
     z-index: 1100;
     position:fixed; top:0px; left:0px; width:100%; height:100%;
     text-align:center;
 }
 
-#overlaypage {
+#overlayPage {
     display: inline-block;
     vertical-align: middle;
     border-radius: 4px;
@@ -167,8 +177,6 @@ div.widgetTitle:hover .widgetButtons {
     -webkit-border-radius: 4px;
     background-color: white; 
     margin-top: 50px;
-    min-width: 20%;
-    min-height: 20%;
     text-align:left;
 }
 

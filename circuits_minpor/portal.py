@@ -262,7 +262,7 @@ class PortalView(BaseComponent):
 
     @property
     def configuring(self):
-        return getattr(self._session, "_configuring", None)
+        return self._session.get("_configuring", None)
 
     def _select_tab(self, tab_id):
         found = False
@@ -418,6 +418,8 @@ class PortalView(BaseComponent):
             self._select_tab(int(kwargs.get("tab")))
         elif action == "close":
             self._close_tab(int(kwargs.get("tab")))
+        elif action == "finish-editing":
+            self._session["_configuring"] = None
 
     def _perform_portlet_state_changes(self, portlet, path_segs):
         if len(path_segs) < 2 or path_segs[0] == "event":
@@ -426,7 +428,7 @@ class PortalView(BaseComponent):
         window_state = path_segs[1]
         del path_segs[0:1]
         if mode == "edit":
-            self._portal._configuring = portlet
+            self._session["_configuring"] = portlet
         if window_state == "solo":
             self._add_solo(portlet)
 
