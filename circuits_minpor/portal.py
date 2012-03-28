@@ -42,6 +42,10 @@ class Portal(BaseComponent):
     """
     This class implements a portal, i.e. a web application that manages
     consolidation of small web applications, the so called portlets. 
+    
+    This class implements the session independent aspects of the portal.
+    All session and state dependent aspects are handled in the associated
+    portal view class.
     """
 
     channel = "minpor"
@@ -96,7 +100,7 @@ class Portal(BaseComponent):
                  name=server.channel+".session").register(server)
         LanguagePreferences(channel = server.channel).register(server)
         ThemeSelection(channel = server.channel).register(server)
-        PortalDispatcher(self, channel = server.channel).register(server)
+        PortalView(self, channel = server.channel).register(server)
         self._supported_locales = []
         for locale in rbtranslations.available_translations\
             ("l10n", self._templates_path, "en"):
@@ -106,8 +110,6 @@ class Portal(BaseComponent):
             self._supported_locales.append((locale, locale_name))
         self._supported_locales.sort(key=lambda x: x[1])
             
-        self._tabs = [_TabInfo("_dashboard", selected=True)]
-
     @handler("registered", channel="*")
     def _on_registered(self, c, m):
         if not isinstance(c, Portlet):
@@ -137,20 +139,8 @@ class Portal(BaseComponent):
         return copy(getattr(self, "_portlets", None))
     
     @property
-    def tabs(self):
-        return copy(getattr(self, "_tabs", None))
-
-    @property
-    def theme(self):
-        return getattr(self, "_theme", "default")
-
-    @property
     def supported_locales(self):
         return getattr(self, "_supported_locales", [])
-
-    @property
-    def configuring(self):
-        return getattr(self, "_configuring", None)
 
     def portlet_by_handle(self, portlet_handle):
         for portlet in self._portlets:
@@ -158,37 +148,6 @@ class Portal(BaseComponent):
             if portlet_desc.handle == portlet_handle:
                 return portlet
         return None
-
-    def select_tab(self, tab_id):
-        found = False
-        for tab in self._tabs:
-            tab._selected = (id(tab) == tab_id)
-            found = found or tab._selected
-        if not found:
-            self._tabs[0]._selected = True
-
-    def close_tab(self, tab_id):
-        tabs = filter(lambda x: id(x) == tab_id, self._tabs)
-        if len(tabs) == 0:
-            return
-        closed = tabs[0]
-        closed_idx = self._tabs.index(closed)
-        del self._tabs[closed_idx]
-        if closed._selected:
-            if len(self._tabs) > closed_idx:
-                self._tabs[closed_idx]._selected = True
-            else:
-                self._tabs[0]._selected = True
-
-    def add_solo(self, portlet):
-        solo_tabs = filter(lambda x: x.portlet == portlet, self._tabs)
-        if len(solo_tabs) > 0:
-            self.select_tab(id(solo_tabs[0]))
-            return
-        portlet_desc = portlet.description()
-        tab = _TabInfo("_solo", closeable=True, portlet=portlet)
-        self._tabs.append(tab)
-        self.select_tab(id(tab))
 
 
 class _TabInfo(object):
@@ -221,15 +180,16 @@ class _TabInfo(object):
         return self._portlet
 
     
-class PortalDispatcher(BaseComponent):
+class PortalView(BaseComponent):
     """
-    The :class:`PortalDispatcher` handles all request directed at the
-    portal. These may be render requests for the portal itself, requests
-    for a portal resource, action requests directed at a portlet and resource
-    requests directed at a portet.
+    The :class:`PortalView` handles all requests directed at the portal.
+    These may be render requests for the portal itself, requests
+    for a portal resource, action requests directed at a portlet and 
+    resource requests directed at a portet.
     """
     _waiting_for_event_complete = False
     _enabled_events = None
+    _session = dict()
 
     class _UGFactory(Portlet.UrlGeneratorFactory):
         
@@ -266,7 +226,7 @@ class PortalDispatcher(BaseComponent):
             return self.UG(self._prefix, portlet)
         
     def __init__(self, portal, *args, **kwargs):
-        super(PortalDispatcher, self).__init__(*args, **kwargs)
+        super(PortalView, self).__init__(*args, **kwargs)
         self.host = kwargs.get("host", None)
         self._portal = portal
         self._engine = tenjin.Engine(path=portal._templates_path)
@@ -274,7 +234,7 @@ class PortalDispatcher(BaseComponent):
         self._portlet_resource = portal.prefix + "/portlet-resource/"
         self._portal_prefix = portal.prefix
         self._portal_path = "/" if portal.prefix == "" else portal.prefix
-        self._ugFactory = PortalDispatcher._UGFactory(portal.prefix)
+        self._ugFactory = PortalView._UGFactory(portal.prefix)
 
     @handler("registered", channel="*")
     def _on_registered(self, c, m):
@@ -288,7 +248,54 @@ class PortalDispatcher(BaseComponent):
             return
         self._enabled_events = None
 
-    def is_portal_request(self, request):
+    @property
+    def portal(self):
+        return getattr(self, "_portal", None)
+
+    @property
+    def tabs(self):
+        return self._session.get("_tabs", [])
+
+    @property
+    def theme(self):
+        return getattr(self._session, "_theme", "default")
+
+    @property
+    def configuring(self):
+        return getattr(self._session, "_configuring", None)
+
+    def _select_tab(self, tab_id):
+        found = False
+        for tab in self._session["_tabs"]:
+            tab._selected = (id(tab) == tab_id)
+            found = found or tab._selected
+        if not found:
+            self._session["_tabs"][0]._selected = True
+
+    def _close_tab(self, tab_id):
+        tabs = filter(lambda x: id(x) == tab_id, self._session["_tabs"])
+        if len(tabs) == 0:
+            return
+        closed = tabs[0]
+        closed_idx = self._session["_tabs"].index(closed)
+        del self._session["_tabs"][closed_idx]
+        if closed._selected:
+            if len(self._session["_tabs"]) > closed_idx:
+                self._session["_tabs"][closed_idx]._selected = True
+            else:
+                self._session["_tabs"][0]._selected = True
+
+    def _add_solo(self, portlet):
+        solo_tabs = filter(lambda x: x.portlet 
+                           == portlet, self._session["_tabs"])
+        if len(solo_tabs) > 0:
+            self._select_tab(id(solo_tabs[0]))
+            return
+        tab = _TabInfo("_solo", closeable=True, portlet=portlet)
+        self._session["_tabs"].append(tab)
+        self._select_tab(id(tab))
+
+    def _is_portal_request(self, request):
         return request.path == self._portal_path \
             or request.path.startswith(self._portal_prefix + "/")
     
@@ -298,7 +305,7 @@ class PortalDispatcher(BaseComponent):
         First request handler. This handler handles resource requests
         directed at the portal or a portlet.
         """
-        if not self.is_portal_request(request):
+        if not self._is_portal_request(request):
             return None
 
         if peer_cert:
@@ -350,8 +357,12 @@ class PortalDispatcher(BaseComponent):
         above is followed by 
         ``/event/{event class name}/{channel }``.
         """
-        if not self.is_portal_request(request):
+        if not self._is_portal_request(request):
             return
+
+        self._session = request.session        
+        if not self._session.has_key("_tabs"):
+            request.session["_tabs"] = [_TabInfo("_dashboard", selected=True)]
         
         path_segs = unicode(urllib.unquote\
                             (request.path[len(self._portal_prefix)+1:])
@@ -404,9 +415,9 @@ class PortalDispatcher(BaseComponent):
             LanguagePreferences\
                 .override_accept(request.session, [kwargs["language"]])
         elif action == "select":
-            self._portal.select_tab(int(kwargs.get("tab")))
+            self._select_tab(int(kwargs.get("tab")))
         elif action == "close":
-            self._portal.close_tab(int(kwargs.get("tab")))
+            self._close_tab(int(kwargs.get("tab")))
 
     def _perform_portlet_state_changes(self, portlet, path_segs):
         if len(path_segs) < 2 or path_segs[0] == "event":
@@ -417,7 +428,7 @@ class PortalDispatcher(BaseComponent):
         if mode == "edit":
             self._portal._configuring = portlet
         if window_state == "solo":
-            self._portal.add_solo(portlet)
+            self._add_solo(portlet)
 
     def _requested_event(self, path_segs, event, request, response):
         if len(path_segs) < 3 or path_segs[0] != "event":
@@ -479,21 +490,20 @@ class PortalDispatcher(BaseComponent):
         back to the template processor using the semaphore.
         """
 
-        def __init__(self, dispatcher, req_evt, request, response):
-            super(PortalDispatcher._RenderThread, self).__init__()
-            self._dispatcher = dispatcher
+        def __init__(self, view, req_evt, request, response):
+            super(PortalView._RenderThread, self).__init__()
+            self._view = view
             self._req_evt = req_evt
             self._request = request
             self._response = response
             self._theme = ThemeSelection.selected()
             self._locales = LanguagePreferences.preferred()
             self._translation = rbtranslations.translation\
-                ("l10n", dispatcher._portal._templates_path, 
+                ("l10n", view._portal._templates_path, 
                  self._locales, "en")
 
         def run(self):
-            portal = self._dispatcher._portal
-            context = { "portal": portal,
+            context = { "portal_view": self._view,
                         "theme": self._theme,
                         "locales": self._locales
                       }
@@ -507,28 +517,29 @@ class PortalDispatcher(BaseComponent):
                 for the result to become available.
                 """
                 evt = RenderPortlet(mode, window_state, locales, 
-                                    self._dispatcher._ugFactory, **kwargs)
-                evt.success_channels = [self._dispatcher.channel]
-                self._dispatcher.fire(evt, portlet.channel)
+                                    self._view._ugFactory, **kwargs)
+                evt.success_channels = [self._view.channel]
+                self._view.fire(evt, portlet.channel)
                 evt.sync = Semaphore(0)
                 evt.sync.acquire()
                 return evt.value.value 
             # Render the template.
             def portal_action_url(action, **kwargs):
-                return (self._dispatcher._portal_prefix
+                return (self._view._portal_prefix
                         + "/portal/" + urllib.quote(action)
                         + (("?" + urllib.urlencode(kwargs)) if kwargs else ""))
             def portlet_state_url(portlet_handle, mode="_", window="_"):
-                return (self._dispatcher._portal_prefix
+                return (self._view._portal_prefix
                         + "/" + portlet_handle + "/" + mode + "/" + window)
                         
             self._req_evt.portal_response = serve_tenjin \
-                (self._dispatcher._engine, self._request, self._response,
+                (self._view._engine, self._request, self._response,
                  "portal.pyhtml", context, type="text/html", 
                  globexts = { "_": self._translation.ugettext,
                               "portal_action_url": portal_action_url,
                               "portlet_state_url": portlet_state_url,
-                              "resource_url": (lambda x: portal.prefix + "/" + x),
+                              "resource_url": 
+                              (lambda x: self._view._portal.prefix + "/" + x),
                               "render": render})
     
     @handler("render_portlet_success")

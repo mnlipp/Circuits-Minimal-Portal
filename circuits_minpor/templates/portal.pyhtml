@@ -1,9 +1,9 @@
 <?py from circuits_minpor import Portlet ?>
-<?py #@ARGS portal, theme, locales ?>
+<?py #@ARGS portal_view, theme, locales ?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-  <title>{= _(portal.title) =}</title>
+  <title>{= _(portal_view.portal.title) =}</title>
   <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
   <meta name="description" content="This is ...">
   <link rel="shortcut icon" href="{== resource_url("theme-resource/favicon.ico") ==}"> 
@@ -11,12 +11,12 @@
 </head>
 
 <body>
-<?py if portal.configuring != None: ?>
+<?py if portal_view.configuring != None: ?>
   <div id="overlay"></div>
   <div id="overlaybody">
     <div id="overlaypage">
       <div class="widgetBody portlet-font">
-        {== render(portal.configuring, mode=Portlet.RenderMode.Edit, window_state=Portlet.WindowState.Maximized, locales=locales) ==}
+        {== render(portal_view.configuring, mode=Portlet.RenderMode.Edit, window_state=Portlet.WindowState.Maximized, locales=locales) ==}
       </div>
     </div>
   </div>
@@ -25,7 +25,7 @@
   <div class="languageSelector">
     <?py selected = None ?>
     <?py for l1 in locales: ?>
-    <?py   for l2 in portal.supported_locales: ?>
+    <?py   for l2 in portal_view.portal.supported_locales: ?>
     <?py     if l1 == l2[0]: ?>
     <?py       selected = l1 ?>
     <?py       break ?>
@@ -37,7 +37,7 @@
     <?py #endfor ?>
     <form action="{== portal_action_url("language") ==}" method="get">
       <select name="language" onchange="this.form.submit()">
-        <?py for locale, name in portal.supported_locales: ?>
+        <?py for locale, name in portal_view.portal.supported_locales: ?>
         <option value="{== locale ==}"{== " selected" if locale == selected else "" ==}>{= name =}</option>
         <?py #endfor ?>
       </select>
@@ -45,13 +45,13 @@
     </form>
   </div>
   
-  <div class="title">{= _(portal.title) =}</div>
+  <div class="title">{= _(portal_view.portal.title) =}</div>
 
   <div class="tabs">
-<span class="{= "tab" + (" activeTab" if portal.tabs[0].selected else "") 
-              =}"><a class="tabLabel" href="{== portal_action_url("select", tab=id(portal.tabs[0])) ==}">{= _("Overview") =}</a><span style="padding-right: 16px;"></span></span>
-  <?py selected = portal.tabs[0] ?>
-  <?py for tab in portal.tabs[1:]: ?>
+<span class="{= "tab" + (" activeTab" if portal_view.tabs[0].selected else "") 
+              =}"><a class="tabLabel" href="{== portal_action_url("select", tab=id(portal_view.tabs[0])) ==}">{= _("Overview") =}</a><span style="padding-right: 16px;"></span></span>
+  <?py selected = portal_view.tabs[0] ?>
+  <?py for tab in portal_view.tabs[1:]: ?>
   <?py   if tab.selected: ?>
   <?py     selected=tab ?>
   <?py   #endif ?>
@@ -61,7 +61,7 @@
   </div>
   <div class="page">
     <?py include(selected.content_renderer + ".pyhtml", tab=selected, 
-                 portlets=portal.portlets, locales=locales) ?>    
+                 portlets=portal_view.portal.portlets, locales=locales) ?>    
   </div>
 </body>
 </html>
