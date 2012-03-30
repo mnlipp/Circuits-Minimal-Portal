@@ -1,3 +1,4 @@
+<?py from circuits_minpor import Portlet ?>
 <?py #@ARGS portlet, locales ?>
 <?py desc = portlet.description(locales=locales) ?>
 <div class="widget widgetBorder">
@@ -8,7 +9,9 @@
     <div class="widgetButtons">
       <span class="widgetButton">
         <a title="{= _("Show in tab") =}" href="{== portlet_state_url(desc.handle, window="solo") ==}"><img src="{== resource_url("theme-resource/fullscreen.png") ==}"></a> 
+        <?py if Portlet.RenderMode.Edit in desc.markup_types["text/html"].render_modes: ?>
         <a title="{= _("Configure") =}" href="{== portlet_state_url(desc.handle, mode="edit") ==}"><img src="{== resource_url("theme-resource/edit.png") ==}"></a>
+        <?py #endif ?>
       </span>
     </div>
   </div>

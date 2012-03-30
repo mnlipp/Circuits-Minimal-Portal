@@ -31,13 +31,13 @@ body {
   border-top-left-radius: 4px;
   border-top-right-radius: 4px;
   position: relative; bottom: -1px; z-index: 20;
-  padding: 4pt 0pt 4pt 0pt;
+  padding: 4pt 2pt 4pt 0pt;
 }
 
 .tabLabel {
   text-decoration: none;
   color: #444;
-  padding: 4pt 6pt 4pt 18pt;
+  padding: 4pt 2pt 4pt 16pt;
 }
 
 .activeTab .tabLabel {
@@ -46,6 +46,15 @@ body {
 
 .tabLabel:hover {
   color: #E87500;
+}
+
+.tabIcons {
+  display: none;
+  padding-right: 4px;
+}
+
+.tab:hover .tabIcons {
+  display: inline;
 }
 
 .tab:hover {
@@ -57,7 +66,6 @@ body {
   visibility: hidden;
   position: relative;
   top: -9px;
-  left: -2px;
   background: url("close-tab.png") top left no-repeat
 }
 

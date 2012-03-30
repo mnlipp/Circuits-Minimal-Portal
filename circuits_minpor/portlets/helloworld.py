@@ -36,7 +36,9 @@ class HelloWorldPortlet(TemplatePortlet):
 
     def description(self, locales=[]):
         return Portlet.Description\
-            (self._handle, "Hello World Portlet", 
+            (self._handle, "Hello World Portlet",
+             markup_types=dict({ "text/html": Portlet.MarkupType\
+                (modes=[Portlet.RenderMode.View, Portlet.RenderMode.Edit])}), 
              events=[(ToggleWorld, self.channel)])
 
     @handler("toggle_world")

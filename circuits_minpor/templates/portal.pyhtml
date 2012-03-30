@@ -54,9 +54,13 @@
   <?py   if tab.selected: ?>
   <?py     selected=tab ?>
   <?py   #endif ?>
-  <?py portlet_desc = tab.portlet.description(locales) ?>
+  <?py   portlet_desc = tab.portlet.description(locales) ?>
 <span class="{= "tab" + (" activeTab" if tab.selected else "") 
-             + (" closableTab" if tab.closeable else "") =}"><a class="tabLabel" href="{== portal_action_url("select", tab=id(tab)) ==}">{= portlet_desc.short_title =}</a><a class="tabCloser" href="{== portal_action_url("close", tab=id(tab)) ==}"><img src="{== resource_url("theme-resource/close-tab-active.png") ==}"></a></span><?py #endfor ?>
+             + (" closableTab" if tab.closeable else "") =}"><a class="tabLabel" href="{== portal_action_url("select", tab=id(tab)) ==}">{= portlet_desc.short_title =}</a>
+<?py if tab.selected and Portlet.RenderMode.Edit in portlet_desc.markup_types["text/html"].render_modes: ?>         
+<span class="tabIcons"><a title="{= _("Configure") =}" href="{== portlet_state_url(portlet_desc.handle, mode="edit") ==}"><img src="{== resource_url("theme-resource/edit-solo.png") ==}"></a></span><?py #endif ?>
+<a class="tabCloser" href="{== portal_action_url("close", tab=id(tab)) ==}"><img src="{== resource_url("theme-resource/close-tab-active.png") ==}"></a></span>
+  <?py #endfor ?>
   </div>
   <div class="page">
     <?py include(selected.content_renderer + ".pyhtml", tab=selected, 
