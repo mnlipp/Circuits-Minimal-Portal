@@ -96,8 +96,6 @@ class Portal(BaseComponent):
             self._templates_path = []
         self._templates_path \
             += [os.path.join(os.path.dirname(__file__), "templates")]
-        Sessions(channel = server.channel, 
-                 name=server.channel+".session").register(server)
         LanguagePreferences(channel = server.channel).register(server)
         ThemeSelection(channel = server.channel).register(server)
         PortalView(self, channel = server.channel).register(server)
@@ -235,6 +233,9 @@ class PortalView(BaseComponent):
         self._portal_prefix = portal.prefix
         self._portal_path = "/" if portal.prefix == "" else portal.prefix
         self._ugFactory = PortalView._UGFactory(portal.prefix)
+        self._session_cookie = self.channel + ".session" 
+        Sessions(channel = self.channel, 
+                 name=self._session_cookie).register(self)
 
     @handler("registered", channel="*")
     def _on_registered(self, c, m):
@@ -310,6 +311,8 @@ class PortalView(BaseComponent):
 
         if peer_cert:
             event.peer_cert = peer_cert
+        # Add path to session cookie, else duplicates may occur
+        response.cookie[self.channel+".session"]["path"] = self._portal_path
         # Decode query parameters
         event.kwargs = dict()
         for key, value in parse_qs(request.qs).items():
