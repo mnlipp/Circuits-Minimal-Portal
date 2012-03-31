@@ -26,6 +26,7 @@ import os
 from circuits_minpor import Portal
 from circuits_bricks.app import Application
 from circuits_minpor.portlets.helloworld import HelloWorldPortlet
+from circuits_minpor.portlets.display import DisplayPortlet
 
 CONFIG = {
     "logging": {
@@ -54,6 +55,7 @@ if __name__ == '__main__':
     portal_server = BaseServer(("", port), channel="ui").register(application)
     Portal(portal_server, title="Test Portal").register(application)
     HelloWorldPortlet().register(application)
+    DisplayPortlet(channel="sample-display").register(application)
     
     from circuits.tools import graph
     print graph(application)

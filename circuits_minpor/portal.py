@@ -202,12 +202,16 @@ class PortalView(BaseComponent):
                 self._channel = portlet.channel
         
             def event_url(self, event_name, channel=None, 
-                          portlet_mode="_", portlet_window_state="_",
+                          portlet_mode=None, portlet_window_state=None,
                           **kwargs):
                 if not channel:
                     channel = self._channel
                 url = self._prefix + "/" + self._handle
-                if portlet_mode != "_" or portlet_window_state != "_":
+                if portlet_mode != None or portlet_window_state != None:
+                    if portlet_mode == None:
+                        portlet_mode = "_"
+                    if portlet_window_state == None:
+                        portlet_window_state = "_"
                     url += "/" + portlet_mode + "/" + portlet_window_state
                 return (url + "/event/"+ urllib.quote(event_name)
                         + "/" + urllib.quote(channel)
@@ -422,14 +426,17 @@ class PortalView(BaseComponent):
         elif action == "close":
             self._close_tab(int(kwargs.get("tab")))
         elif action == "finish-editing":
-            self._session["_configuring"] = None
+            del self._session["_configuring"]
 
     def _perform_portlet_state_changes(self, portlet, path_segs):
         if len(path_segs) < 2 or path_segs[0] == "event":
             return
         mode = path_segs[0]
         window_state = path_segs[1]
-        del path_segs[0:1]
+        del path_segs[0:2]
+        if self._session.get("_configuring", None) == portlet \
+            and mode != "edit":
+            del self._session["_configuring"]
         if mode == "edit":
             self._session["_configuring"] = portlet
         if window_state == "solo":
@@ -440,7 +447,7 @@ class PortalView(BaseComponent):
             return None
         evt_class = path_segs[1]
         channel = path_segs[2]
-        del path_segs[0:2]
+        del path_segs[0:3]
         if not self._check_event(evt_class, channel):
             return None
         try:

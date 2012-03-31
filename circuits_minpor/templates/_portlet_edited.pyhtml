@@ -1,3 +1,4 @@
+<?py from circuits_minpor import Portlet ?>
 <?py #@ARGS portlet, locales ?>
 <?py desc = portlet.description(locales=locales) ?>
 <div class="widget">
@@ -12,6 +13,6 @@
     </span>
   </div>
   <div class="widgetBody portlet-font">
-    {== render(portlet, locales=locales) ==}
+    {== render(portlet, mode=Portlet.RenderMode.Edit, locales=locales) ==}
   </div>
 </div>

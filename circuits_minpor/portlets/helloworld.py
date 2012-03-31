@@ -1,6 +1,6 @@
 """
 ..
-   This file is part of the circuits bricks component library.
+   This file is part of the circuits minimal portal component.
    Copyright (C) 2012 Michael N. Lipp
    
    This program is free software: you can redistribute it and/or modify
@@ -37,8 +37,6 @@ class HelloWorldPortlet(TemplatePortlet):
     def description(self, locales=[]):
         return Portlet.Description\
             (self._handle, "Hello World Portlet",
-             markup_types=dict({ "text/html": Portlet.MarkupType\
-                (modes=[Portlet.RenderMode.View, Portlet.RenderMode.Edit])}), 
              events=[(ToggleWorld, self.channel)])
 
     @handler("toggle_world")

@@ -60,16 +60,16 @@ class Portlet(BaseComponent):
     __metaclass__ = ABCMeta
     
     class RenderMode(object):
-        View = 1
-        Edit = 2
-        Help = 3
-        Preview = 4
+        View = "view"
+        Edit = "edit"
+        Help = "help"
+        Preview = "preview"
         
     class WindowState(object):
-        Normal = 1
-        Minimized = 2
-        Maximized = 3
-        Solo = 4
+        Normal = "normal"
+        Minimized = "minimized"
+        Maximized = "maximized"
+        Solo = "solo"
 
     class MarkupType(object):
 
@@ -87,7 +87,7 @@ class Portlet(BaseComponent):
 
     class Description(object):
         def __init__(self, handle, short_title, title = None,  
-                     markup_types=None, locale = "en-US", events = None):
+                     markup_types=None, locale = "en-US", events = []):
             self._handle = handle
             self._short_title = short_title
             self._title = title or short_title
