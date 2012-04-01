@@ -26,6 +26,6 @@ setup(
     long_description=read('pypi-overview.rst'),
     classifiers=[
         "Development Status :: 3 - Alpha",
-        "License :: OSI Approved :: GPL License",
+        "License :: OSI Approved :: GNU General Public License (GPL)",
     ],
 )
