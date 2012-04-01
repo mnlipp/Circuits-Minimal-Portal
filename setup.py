@@ -20,8 +20,9 @@ setup(
     keywords = "circuits portal",
     url = "http://packages.python.org/circuits-minpor",
     packages=['circuits_minpor', 'tests'],
-    package_data={'circuits_minpor': ['*.properties'],
-                  'tests': ['*.properties']},
+    package_data={'circuits_minpor': ['templates/*.properties', 
+                                      'templates/*.pyhtml',
+                                      'templates/themes/default/*']},
     long_description=read('pypi-overview.rst'),
     classifiers=[
         "Development Status :: 3 - Alpha",
