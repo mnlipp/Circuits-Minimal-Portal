@@ -40,10 +40,15 @@ import logging
 
 class Portal(BaseComponent):
     """
-    This class implements a portal, i.e. a web application that manages
+    This class provides a portal, i.e. a web application that manages
     consolidation of small web applications, the so called portlets. 
+
+    Once created and added to the circuits component hierarchy, the
+    portal tracks the registering of :class:`circuits_minpor.Portlet`
+    components. An associated dispatcher component handles the web
+    requests and displays the render results from the portlets. 
     
-    This class implements the session independent aspects of the portal.
+    The class implements the session independent aspects of the portal.
     All session and state dependent aspects are handled in the associated
     portal view class.
     """
@@ -63,18 +68,20 @@ class Portal(BaseComponent):
                        that listens on port 4444.
         :type server: :class:`circuits.web.server.BaseServer`
         
-        :param prefix: a prefix for URLs used in the portal. This allows
+        :param prefix: a prefix for URLs used by the portal. This allows
                        the portal to co-exist with other content on the same
-                       web server. If specified, all URLs will be prefixed
-                       with this parameter. The value must start with a 
-                       slash and must not end with a slash.
+                       web server. If specified, only requests with the
+                       given prefix are handled by the portal dispatcher and 
+                       the prefix is prepended to all generated URLs.
+                       The value must start with a slash and must not 
+                       end with a slash.
         :type prefix: string
         
         :param title: The title of the portal (displayed in the
                       browser's title bar)
         :type title: string
         
-        :param templates_dir: a directory with templates that replace
+        :param templates_dir: a directory with templates that override
                               the portal's standard templates. Any template
                               and localization resource is first searched
                               for in this directory, then in the portal's
@@ -344,7 +351,7 @@ class PortalView(BaseComponent):
                     (Request.create("PortletResource", *event.args,
                                     **event.kwargs), segs[0])        
 
-    @handler("request", filter=True, priority=0.05)
+    @handler("request", filter=True, priority=0.09)
     def _on_portal_request(self, event, request, response, peer_cert=None):
         """
         Second request handler. This handler processes portlet actions
@@ -520,7 +527,8 @@ class PortalView(BaseComponent):
                         "locales": self._locales
                       }
             
-            def render(portlet, mode=Portlet.RenderMode.View, 
+            def render(portlet, mime_type="text/html", 
+                       mode=Portlet.RenderMode.View, 
                        window_state=Portlet.WindowState.Normal, 
                        locales=[], **kwargs):
                 """
@@ -528,7 +536,7 @@ class PortalView(BaseComponent):
                 engine. It fires the :class:`RenderPortlet` event and waits
                 for the result to become available.
                 """
-                evt = RenderPortlet(mode, window_state, locales, 
+                evt = RenderPortlet(mime_type, mode, window_state, locales, 
                                     self._view._ugFactory, **kwargs)
                 evt.success_channels = [self._view.channel]
                 self._view.fire(evt, portlet.channel)

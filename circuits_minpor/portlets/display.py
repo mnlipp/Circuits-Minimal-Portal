@@ -38,7 +38,7 @@ class DisplayPortlet(Portlet):
                 (modes=[Portlet.RenderMode.View, Portlet.RenderMode.Edit])}),
              events=[(SetText, self.channel)])
 
-    def _do_render(self, mode, window_state, locales, 
+    def do_render(self, markup, mode, window_state, locales, 
                    url_generator, **kwargs):
         if mode == Portlet.RenderMode.Edit:
             return "<form action=\"%s\" method=\"post\">" \
