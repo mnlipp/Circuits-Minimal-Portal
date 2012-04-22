@@ -21,7 +21,7 @@
 from circuits.web import tools
 from circuits.core.components import BaseComponent
 from circuits.web.servers import BaseServer
-from circuits.web.events import Request
+from circuits.web.events import WebEvent
 import os
 from circuits.core.handlers import handler
 import tenjin
@@ -348,7 +348,7 @@ class PortalView(BaseComponent):
                     ({ "theme": ThemeSelection.selected(),
                        "locales": LanguagePreferences.preferred()})
                 return self.fire\
-                    (Request.create("PortletResource", *event.args,
+                    (WebEvent.create("PortletResource", *event.args,
                                     **event.kwargs), segs[0])        
 
     @handler("request", filter=True, priority=0.09)
