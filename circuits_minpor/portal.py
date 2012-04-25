@@ -239,6 +239,7 @@ class PortalView(BaseComponent):
         self.host = kwargs.get("host", None)
         self._portal = portal
         self._engine = tenjin.Engine(path=portal._templates_path)
+        self._portal_resource = portal.prefix + "/portal-resource/"
         self._theme_resource = portal.prefix + "/theme-resource/"
         self._portlet_resource = portal.prefix + "/portlet-resource/"
         self._portal_prefix = portal.prefix
@@ -330,6 +331,14 @@ class PortalView(BaseComponent):
             event.kwargs[unicode(key.encode("iso-8859-1"), "utf-8")] \
                 = unicode(value.encode("iso-8859-1"), "utf-8")
         parse_body(request, response, event.kwargs)
+        # Is this a portal request?
+        if request.path.startswith(self._portal_resource):
+            request.path = request.path[len(self._portal_resource):]
+            res = os.path.join(os.path.join\
+                (os.path.dirname(__file__), request.path))
+            if os.path.exists(res):
+                return tools.serve_file(request, response, res)
+            return
         # Is this a portal resource request?
         if request.path.startswith(self._theme_resource):
             request.path = request.path[len(self._theme_resource):]
@@ -520,6 +529,9 @@ class PortalView(BaseComponent):
             self._translation = rbtranslations.translation\
                 ("l10n", view._portal._templates_path, 
                  self._locales, "en")
+            if self._translation.language:
+                response.headers["Content-Language"] \
+                    = self._translation.language.replace("_", "-")
 
         def run(self):
             context = { "portal_view": self._view,

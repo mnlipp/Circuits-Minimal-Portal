@@ -8,6 +8,19 @@
   <meta name="description" content="This is ...">
   <link rel="shortcut icon" href="{== resource_url("theme-resource/favicon.ico") ==}"> 
   <link rel="stylesheet" type="text/css" href="{== resource_url("theme-resource/mipypo.css") ==}">
+  <script src="{== resource_url("portal-resource/date_format.js") ==}" type="text/javascript"></script>
+  <script type="text/javascript">
+  Date.replaceChars.shortMonths = {== _("date_format_shortMonths") ==}
+  Date.replaceChars.longMonths = {== _("date_format_longMonths") ==}
+  Date.replaceChars.shortDays = {== _("date_format_shortDays") ==}
+  Date.replaceChars.longDays = {== _("date_format_longDays") ==}
+  Date.replaceChars.shortDate = {== _("date_format_shortDate") ==}
+  Date.replaceChars.longDate = {== _("date_format_longDate") ==}
+  Date.replaceChars.shortTime = {== _("date_format_shortTime") ==}
+  Date.replaceChars.longTime = {== _("date_format_longTime") ==}
+  Date.replaceChars.shortDateTime = {== _("date_format_shortDateTime") ==}
+  Date.replaceChars.longDateTime = {== _("date_format_longDateTime") ==}
+  </script>
 </head>
 
 <body>
