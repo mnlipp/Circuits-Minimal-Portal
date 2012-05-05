@@ -551,8 +551,8 @@ class PortalView(BaseComponent):
                 evt = RenderPortlet(mime_type, mode, window_state, locales, 
                                     self._view._ugFactory, **kwargs)
                 evt.success_channels = [self._view.channel]
-                self._view.fire(evt, portlet.channel)
                 evt.sync = Semaphore(0)
+                self._view.fire(evt, portlet.channel)
                 evt.sync.acquire()
                 return evt.value.value 
             # Render the template.
