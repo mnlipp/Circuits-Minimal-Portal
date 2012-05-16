@@ -28,7 +28,6 @@ from circuits.core.handlers import handler
 import os
 import rbtranslations
 import tenjin
-from nevow.url import URLGenerator
 
 class RenderPortlet(Event):
     """
@@ -260,7 +259,7 @@ class Portlet(BaseComponent):
             Invoked by the portlet to obtain its (portlet
             specific) URL generator from the portal.
             """
-            return URLGenerator()
+            return Portlet.URLGenerator()
 
     def __init__(self, *args, **kwargs):
         self._handle = str(uuid.uuid4())
