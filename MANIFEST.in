@@ -1,0 +1,8 @@
+include pypi-overview.rst
+include circuits_minpor/*.js
+recursive-include circuits_minpor/templates *.properties
+recursive-include circuits_minpor/templates *.pyhtml
+recursive-include circuits_minpor/templates/themes *
+recursive-include circuits_minpor/portlets/templates *.properties
+recursive-include circuits_minpor/portlets/templates *.pyhtml
+recursive-include circuits_minpor/portlets/templates/themes *
