@@ -48,5 +48,5 @@ and install using::
 License
 -------
 
-circuits-bricks is licensed under the `GPL License`_.
+circuits-minpor is licensed under the `GPL License`_.
 
