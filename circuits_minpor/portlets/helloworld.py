@@ -19,7 +19,6 @@
 .. moduleauthor:: mnl
 """
 from circuits_minpor.portlet import TemplatePortlet, Portlet
-import os
 from circuits.core.events import Event
 from circuits.core.handlers import handler
 
@@ -30,13 +29,13 @@ class HelloWorldPortlet(TemplatePortlet):
 
     def __init__(self, *args, **kwargs):
         super(HelloWorldPortlet, self) \
-            .__init__(os.path.join(os.path.dirname(__file__), "templates"), 
-                      "helloworld", *args, **kwargs)
+            .__init__("templates", "helloworld", *args, **kwargs)
         self._show_world = True
 
     def description(self, locales=[]):
         return Portlet.Description\
-            (self._handle, "Hello World Portlet",
+            (self._handle, self.translation(locales) \
+                .ugettext("Hello World Portlet"),
              events=[(ToggleWorld, self.channel)])
 
     @handler("toggle_world")

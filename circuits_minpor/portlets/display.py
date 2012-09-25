@@ -33,7 +33,8 @@ class DisplayPortlet(Portlet):
 
     def description(self, locales=[]):
         return Portlet.Description\
-            (self._handle, "Display Portlet",
+            (self._handle, 
+             self.translation(locales).ugettext("Display Portlet"),
              markup_types=dict({ "text/html": Portlet.MarkupType\
                 (modes=[Portlet.RenderMode.View, Portlet.RenderMode.Edit])}),
              events=[(SetText, self.channel)])

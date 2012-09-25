@@ -28,6 +28,7 @@ from circuits.core.handlers import handler
 import os
 import rbtranslations
 import tenjin
+import inspect
 
 class RenderPortlet(Event):
     """
@@ -215,11 +216,11 @@ class Portlet(BaseComponent):
             """
             Generate a URL that fires an event when clicked.
             :param event_name: the fully qualified name of the
-                event class.
+            event class.
             :type event_name: string
             :param channel: the channel on which to fire the
-                event. Implementations of this class must use the portlet's
-                channel as default value.
+            event. Implementations of this class must use the portlet's
+            channel as default value.
             :type channel: string
             
             All remaining keyword arguments are appended as
@@ -261,11 +262,32 @@ class Portlet(BaseComponent):
             """
             return Portlet.URLGenerator()
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, key_language="en", *args, **kwargs):
+        """
+        :keyword key_language: the value of the key_language parameter used
+            in :meth:`.translation`.
+        :type key_language: string
+        """
         self._handle = str(uuid.uuid4())
         if not kwargs.has_key("channel"):
             kwargs["channel"] = self._handle
         super(Portlet, self).__init__(*args, **kwargs)
+        class_file = inspect.getfile(self.__class__)
+        self._translation_basename \
+            = os.path.basename(class_file).rsplit(".", 1)[0] + "-l10n"
+        self._translation_props_dir = os.path.dirname(class_file)
+        self._key_language = key_language
+
+    def translation(self, locales=[]):
+        """
+        Returns an instance of :class:`rbtranslations.Translation` that
+        looks for properties files named like the portlet's base source
+        filename with "-l10n" appended in the same directory as the portlet's
+        source file.
+        """
+        return rbtranslations.translation\
+            (self._translation_basename, self._translation_props_dir,
+             locales, key_language=self._key_language)
 
     def description(self, locales=[]):
         """
@@ -327,21 +349,29 @@ class TemplatePortlet(Portlet):
 
     def __init__(self, template_dir, name, *args, **kwargs):
         super(TemplatePortlet, self).__init__(*args, **kwargs)
-        self._template_dir = os.path.abspath(template_dir)
+        if os.path.isabs(template_dir):
+            self._template_dir = template_dir
+        else:
+            class_dir = os.path.dirname(inspect.getfile(self.__class__))
+            self._template_dir \
+                = os.path.abspath(os.path.join(class_dir, template_dir))
         self._name = name
         self._engine = tenjin.Engine(path=[self._template_dir])
+        self._key_language = kwargs.get("key_language", "en")
+
+    def translation(self, locales=[]):
+        return rbtranslations.translation\
+            (self._name + "-l10n", self._template_dir, locales,
+             key_language=self._key_language)
 
     def do_render(self, mime_type, mode, window_state, locales, url_generator, 
-                   key_language="en", context_exts = {}, globs_exts = {},
-                   **kwargs):
+                  context_exts = {}, globs_exts = {}, **kwargs):
         theme = kwargs.get("theme", "default")
         theme_path = os.path.join(self._template_dir, "themes", theme)
         if not os.path.exists(theme_path):
             theme_path = None
         # Find/Create translations for globals
-        translation = rbtranslations.translation\
-            (self._name + "-l10n", self._template_dir, locales,
-             key_language=key_language)
+        translation = self.translation(locales)
         # Prepare context
         context = { "portlet": self,
                     "mode": mode, "window_state": window_state,
