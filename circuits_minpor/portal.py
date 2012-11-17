@@ -121,6 +121,11 @@ class Portal(BaseComponent):
             return
         if not c in self._portlets:
             self._portlets.append(c)
+            for idx, p in enumerate(self._portlets):
+                if c.weight < p.weight:
+                    self._portlets.insert(idx, c)
+                    del self._portlets[len(self._portlets) - 1]
+                    break;
             self._enabled_events_changed = True
 
     @handler("unregistered")

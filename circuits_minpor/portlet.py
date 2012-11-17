@@ -262,11 +262,13 @@ class Portlet(BaseComponent):
             """
             return Portlet.URLGenerator()
 
-    def __init__(self, key_language="en", *args, **kwargs):
+    def __init__(self, key_language="en", weight=0, *args, **kwargs):
         """
         :keyword key_language: the value of the key_language parameter used
             in :meth:`.translation`.
         :type key_language: string
+        :keyword weight: a float number used for initial placement 
+            of portlets in the portal
         """
         self._handle = str(uuid.uuid4())
         if not kwargs.has_key("channel"):
@@ -277,6 +279,11 @@ class Portlet(BaseComponent):
             = os.path.basename(class_file).rsplit(".", 1)[0] + "-l10n"
         self._translation_props_dir = os.path.dirname(class_file)
         self._key_language = key_language
+        self._weight = weight
+
+    @property
+    def weight(self):
+        return self._weight
 
     def translation(self, locales=[]):
         """
