@@ -283,7 +283,7 @@ class Portlet(BaseComponent):
 
     @property
     def weight(self):
-        return self._weight
+        return getattr(self, "_weight", 0)
 
     def translation(self, locales=[]):
         """
