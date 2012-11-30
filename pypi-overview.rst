@@ -23,7 +23,7 @@ Requirements
 ------------
 
 circuits-minpor depends on the `Python Standard Library`_,
-the `circuits framework`_ in the upcoming 1.7 version,
+the `circuits framework`_ in the 2.0.1 version,
 the general purpose `circuits_bricks` components and the
 `rbtranslations` library. Both circuits bricks and the
 resource bundle translations library are small libraries
