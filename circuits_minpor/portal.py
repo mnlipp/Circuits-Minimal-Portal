@@ -330,11 +330,8 @@ class PortalView(BaseComponent):
             event.peer_cert = peer_cert
         # Add path to session cookie, else duplicates may occur
         response.cookie[self.channel+".session"]["path"] = self._portal_path
-        # Decode query parameters
-        event.kwargs = dict()
-        for key, value in parse_qs(request.qs).items():
-            event.kwargs[unicode(key.encode("iso-8859-1"), "utf-8")] \
-                = unicode(value.encode("iso-8859-1"), "utf-8")
+        # Decode query parameters and body
+        event.kwargs = parse_qs(request.qs)
         parse_body(request, response, event.kwargs)
         # Is this a portal request?
         if request.path.startswith(self._portal_resource):
@@ -392,9 +389,8 @@ class PortalView(BaseComponent):
         if not self._session.has_key("_tabs"):
             request.session["_tabs"] = [_TabInfo("_dashboard", selected=True)]
         
-        path_segs = unicode(urllib.unquote\
-                            (request.path[len(self._portal_prefix)+1:])
-                            .encode("iso-8859-1"), "utf-8").split("/")
+        path_segs = urllib.unquote \
+            (request.path[len(self._portal_prefix)+1:]).split("/")
         portlet = None
         if path_segs[0] != '':
             if path_segs[0] == "portal":
