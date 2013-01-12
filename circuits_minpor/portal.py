@@ -21,7 +21,7 @@
 from circuits.web import tools
 from circuits.core.components import BaseComponent
 from circuits.web.servers import BaseServer
-from circuits.web.events import WebEvent
+from circuits.web.events import WebEvent, Request
 import os
 from circuits.core.handlers import handler
 import tenjin
@@ -37,6 +37,21 @@ import rbtranslations
 import urllib
 import sys
 import logging
+from circuits.core.events import Event
+
+class PortletAdded(Event):
+    """
+    Sent to a Portlet when it is added to a Portal.
+    :param portal: the portal component
+    :param portlet: the portlet comoponent
+    """
+
+class PortletRemoved(Event):
+    """
+    Sent to a Portlet when it is removed from a Portal.
+    :param portal: the portal component
+    :param portlet: the portlet comoponent
+    """
 
 class Portal(BaseComponent):
     """
@@ -105,7 +120,8 @@ class Portal(BaseComponent):
             += [os.path.join(os.path.dirname(__file__), "templates")]
         LanguagePreferences(channel = server.channel).register(server)
         ThemeSelection(channel = server.channel).register(server)
-        PortalView(self, channel = server.channel).register(server)
+        view = PortalView(self, channel = server.channel).register(server)
+        self._url_generator_factory = view.url_generator_factory
         self._supported_locales = []
         for locale in rbtranslations.available_translations\
             ("l10n", self._templates_path, "en"):
@@ -121,6 +137,7 @@ class Portal(BaseComponent):
             return
         if not c in self._portlets:
             self._portlets.append(c)
+            self.fire(PortletAdded(self, c), c)
             for idx, p in enumerate(self._portlets):
                 if c.weight < p.weight:
                     self._portlets.insert(idx, c)
@@ -134,6 +151,7 @@ class Portal(BaseComponent):
             return
         if c in self._portlets:
             self._portlets.remove(c)
+            self.fire(PortletRemoved(self, c), c)
             self._enabled_events_changed = True
 
     @property
@@ -159,6 +177,8 @@ class Portal(BaseComponent):
                 return portlet
         return None
 
+    def url_generator(self, portlet):
+        return self._url_generator_factory.make_generator(portlet)
 
 class _TabInfo(object):
     
@@ -282,6 +302,10 @@ class PortalView(BaseComponent):
     def configuring(self):
         return self._session.get("_configuring", None)
 
+    @property
+    def url_generator_factory(self):
+        return getattr(self, "_ugFactory", None)
+
     def _select_tab(self, tab_id):
         found = False
         for tab in self._session["_tabs"]:
@@ -324,7 +348,7 @@ class PortalView(BaseComponent):
         directed at the portal or a portlet.
         """
         if not self._is_portal_request(request):
-            return None
+            return
 
         if peer_cert:
             event.peer_cert = peer_cert
@@ -358,9 +382,8 @@ class PortalView(BaseComponent):
                 event.kwargs.update\
                     ({ "theme": ThemeSelection.selected(),
                        "locales": LanguagePreferences.preferred()})
-                return self.fire\
-                    (WebEvent.create("PortletResource", *event.args,
-                                    **event.kwargs), segs[0])        
+                return self.fire (WebEvent.create("PortletResource", 
+                                  *event.args, **event.kwargs), segs[0])
 
     @handler("request", filter=True, priority=0.09)
     def _on_portal_request(self, event, request, response, peer_cert=None):

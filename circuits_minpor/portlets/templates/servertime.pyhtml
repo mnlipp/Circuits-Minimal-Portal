@@ -1,0 +1,31 @@
+<?py #@ARGS portlet, mode, window_state, theme, locales ?>
+<?py from circuits_minpor import Portlet ?>
+
+<!-- This defines the template for the generated HTML -->
+<script type="text/template" id="hello_tmpl">
+  <div><%=time%></div>
+</script>
+
+<script type="text/javascript">
+function openSocket()
+{
+  if ("WebSocket" in window)
+  {
+     // Let us open a web socket
+     var ws = new WebSocket(CirMinPor.wsUrl("{== resource_url("timeSocket") ==}"));
+     ws.onmessage = function (evt) 
+     { 
+        var receivedTime = new Date(parseInt(evt.data));
+        var formattedTime = receivedTime.toString("FFFF");
+        var result = document.getElementById("servertime_display");
+        result.innerHTML = CirMinPor.tmpl("hello_tmpl", {time: formattedTime});
+     };
+  }
+}
+
+openSocket();
+</script>
+
+<div>
+  <div id="servertime_display"></div>
+</div>
