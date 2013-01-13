@@ -38,6 +38,9 @@ import urllib
 import sys
 import logging
 from circuits.core.events import Event
+from circuits_bricks.web.dispatchers.websockets import WebSockets
+import json
+from circuits.net.sockets import Write
 
 class PortletAdded(Event):
     """
@@ -51,6 +54,17 @@ class PortletRemoved(Event):
     Sent to a Portlet when it is removed from a Portal.
     :param portal: the portal component
     :param portlet: the portlet comoponent
+    """
+
+class PortalChange(Event):
+    """
+    An event that is forwarded to the browser.
+    :param portlet: the portlet where the change occured or None if
+        the change affects the cmplete portal.
+    :param name: a name that further classifies the change.
+    
+    Arbitrary additional arguments may be added provided that
+    they can be serialized using json.dump.  
     """
 
 class Portal(BaseComponent):
@@ -122,6 +136,9 @@ class Portal(BaseComponent):
         ThemeSelection(channel = server.channel).register(server)
         view = PortalView(self, channel = server.channel).register(server)
         self._url_generator_factory = view.url_generator_factory
+        self._event_exchange_channel = self.channel + "-eventExchange" 
+        WebSockets(self._prefix + "/eventExchange", channel=self.channel,
+                   wschannel=self._event_exchange_channel).register(self)
         self._supported_locales = []
         for locale in rbtranslations.available_translations\
             ("l10n", self._templates_path, "en"):
@@ -153,6 +170,18 @@ class Portal(BaseComponent):
             self._portlets.remove(c)
             self.fire(PortletRemoved(self, c), c)
             self._enabled_events_changed = True
+
+    @handler("portal_change")
+    def _on_portal_change(self, portlet, name, *args):
+        if portlet is None:
+            handle = "portal"
+        else:
+            handle = portlet.description().handle
+        data = [ handle, name ]
+        for arg in args:
+            data.append(arg)
+        msg = json.dumps(data)
+        self.fire(Write(None, msg), self._event_exchange_channel)
 
     @property
     def prefix(self):
@@ -544,6 +573,7 @@ class PortalView(BaseComponent):
 
         def __init__(self, view, req_evt, request, response):
             super(PortalView._RenderThread, self).__init__()
+            self.daemon = True
             self._view = view
             self._req_evt = req_evt
             self._request = request

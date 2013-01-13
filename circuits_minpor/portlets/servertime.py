@@ -25,12 +25,14 @@ from circuits.core.events import Event
 from circuits.core.handlers import handler
 from circuits.net.sockets import Write
 import datetime
+from circuits_minpor.portal import PortalChange
 
 class ServerTimePortlet(TemplatePortlet):
 
     def __init__(self, *args, **kwargs):
         super(ServerTimePortlet, self) \
             .__init__("templates", "servertime", *args, **kwargs)
+        self._portal_channel = None
         self._time_channel = self.channel + "-time"
         evt = Event.create("TimeOver")
         evt.channels = (self.channel,)
@@ -44,13 +46,13 @@ class ServerTimePortlet(TemplatePortlet):
 
     @handler("portlet_added")
     def _on_portlet_added(self, portal, portlet):
-        ws_url = portal.url_generator(portlet).resource_url("timeSocket")
-        WebSockets(ws_url, self._time_channel,
-                   channel=portal.channel).register(self)
+        self._portal_channel = portal.channel
 
     @handler("time_over")
     def _on_time_over(self):
+        if self._portal_channel is None:
+            return
         td = datetime.datetime.utcnow() - datetime.datetime(1970, 1, 1)
         td = td.microseconds / 1000 + (td.seconds + td.days * 86400) * 1000
         td = int(td)
-        self.fire(Write(None, str(td)), self._time_channel)
+        self.fire(PortalChange(self, "new_time", str(td)), self._portal_channel)

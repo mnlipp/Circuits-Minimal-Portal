@@ -5,6 +5,36 @@ body {
   padding: 2pt;
 }
 
+.topMessageDisplay {
+  background: #F1F1F1;
+  border-radius: 4px 4px 4px 4px;
+  -moz-border-radius: 4px 4px 4px 4px;
+  -webkit-border-radius: 4px 4px 4px 4px;
+  width: 80%;
+  padding: 5px;
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 5pt;
+}
+
+#topMessageList {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.topMessageDisplay .error {
+  color: #EA4848;
+}
+
+.topMessageCloseIcon {
+  float: right;
+  margin-left: 4px;
+  margin-bottom: 4px;
+}
+
+.topMessageText {
+}
+
 .languageSelector {
   position: absolute;
   top: 5pt;

@@ -9,6 +9,11 @@
   <link rel="shortcut icon" href="{== resource_url("theme-resource/favicon.ico") ==}"> 
   <link rel="stylesheet" type="text/css" href="{== resource_url("theme-resource/mipypo.css") ==}">
   <script src="{== resource_url("portal-resource/functions.js") ==}" type="text/javascript"></script>
+  <script type="text/javascript">
+  CirMinPor._strings = {
+    WebSocketsUnavailable: "{== _("WebSocketsUnavailable") ==}"
+  };
+  </script>
   <script src="{== resource_url("portal-resource/date_format.js") ==}" type="text/javascript"></script>
   <script type="text/javascript">
   Date.replaceChars.shortMonths = {== _("date_format_shortMonths") ==}
@@ -25,6 +30,7 @@
 </head>
 
 <body>
+
 <?py if portal_view.configuring != None: ?>
   <div id="overlay"></div>
   <div id="overlayBody">
@@ -34,6 +40,17 @@
     </div>
   </div>
 <?py #endif ?>
+
+  <!-- This defines the template for an entry in the message list -->
+  <script type="text/template" id="topMessageEntry">
+    <div class="topMessageCloseIcon"><a href="javascript:CirMinPor.removeMessage('<%=id%>')"><img src="{== resource_url("theme-resource/close-tab-active.png") ==}"></a></div>
+    <span class="topMessageText"><%=message%></span>
+  </script>
+
+  <div class="topMessageDisplay" style="display: none;" 
+    id="topMessageDisplay">
+    <ul id="topMessageList"></ul>
+  </div>
 
   <div class="languageSelector">
     <?py selected = None ?>
@@ -80,5 +97,9 @@
     <?py include(selected.content_renderer + ".pyhtml", tab=selected, 
                  portlets=portal_view.portal.portlets, locales=locales) ?>    
   </div>
+  
+<script type="text/javascript">
+CirMinPor._openEventExchange("{== resource_url("eventExchange") ==}");
+</script>
 </body>
 </html>
