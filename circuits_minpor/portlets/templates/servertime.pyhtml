@@ -1,29 +1,27 @@
 <?py #@ARGS portlet, mode, window_state, theme, locales ?>
 <?py from circuits_minpor import Portlet ?>
 
+<div>
+  <div style="display: inline;" id="{== _pl("display") ==}">...</div>
+  (<a href="#" id="{== _pl("help_button") ==}">?</a>)
+</div>
+
 <!-- This defines the template for the generated HTML -->
-<script type="text/template" id="hello_tmpl">
+<script type="text/template" id="{== _pl("hello_tmpl") ==}">
   <span><%=time%></span>
 </script>
 
 <script type="text/javascript">
-function updateTime(args)
-{
-    var result = document.getElementById("servertime_display");
-    var receivedTime = new Date(parseInt(args[0]));
-    var formattedTime = receivedTime.toString("FFFF");
-    result.innerHTML = CirMinPor.tmpl("hello_tmpl", {time: formattedTime});
+document.getElementById("{== _pl("help_button") ==}").onclick = function () {
+    CirMinPor.addMessage("{= _("ServerTimePortletHelp") =}");
 }
 
 CirMinPor.addEventExchangeHandler("{== portlet.description().handle ==}",
-    "new_time", updateTime);
-    
-function helpMsg() {
-    CirMinPor.addMessage("{= _("ServerTimePortletHelp") =}");
-}
+    "new_time", function (args) {
+    var result = document.getElementById("{== _pl("display") ==}");
+    var receivedTime = new Date(parseInt(args[0]));
+    var formattedTime = receivedTime.toString("FFFF");
+    result.innerHTML = CirMinPor.tmpl("{== _pl("hello_tmpl") ==}",
+                                      {time: formattedTime});
+});
 </script>
-
-<div>
-  <div style="display: inline;" id="servertime_display">...</div>
-  (<a href="javascript:helpMsg()">?</a>)
-</div>

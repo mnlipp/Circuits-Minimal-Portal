@@ -38,7 +38,7 @@ class RenderPortlet(Event):
     success = True
     
     def __init__(self, mime_type, mode, window_state, locales, 
-                 url_generator_factory, **kwargs):
+                 url_generator_factory, invocation_id, **kwargs):
         """
         Renders a portlet.
         
@@ -56,10 +56,14 @@ class RenderPortlet(Event):
         
         :param url_generator_factory: factory for URL generator
         :type urlGenerator: :class:`UrlGeneratorFactory`
+        
+        :param invocation_id: a value that is different for each event
+            fired during the rendering of a portal page
+        :type invocation_id: int
         """
         super(RenderPortlet, self).__init__\
             (mime_type, mode, window_state, locales, 
-             url_generator_factory, **kwargs)
+             url_generator_factory, invocation_id, **kwargs)
 
 
 class Portlet(BaseComponent):
@@ -310,13 +314,14 @@ class Portlet(BaseComponent):
     def _render_portlet(self, mime_type="text/html", 
                         mode=RenderMode.View, 
                         window_state=WindowState.Normal, 
-                        locales=[], url_generator_factory=None, **kwargs):
+                        locales=[], url_generator_factory=None, 
+                        invocation_id=0, **kwargs):
         url_generator = url_generator_factory.make_generator(self)
         return self.do_render(mime_type, mode, window_state, 
-                               locales, url_generator, **kwargs)
+                              locales, url_generator, invocation_id, **kwargs)
 
     def do_render(self, mime_type, mode, window_state, locales, 
-                   url_generator, **kwargs):
+                   url_generator, invocation_id, **kwargs):
         """
         Return the markup for the portlet using the language 
         matching the specified *mime_type* and 
@@ -334,6 +339,9 @@ class Portlet(BaseComponent):
         :type locales: list of string
         :param url_generator: the URL generator to use for generating URLs.
         :type url_generator: :class:`~.URLGenerator`
+        :param invocation_id: a value that is different for each event
+            fired during the rendering of a portal page
+        :type invocation_id: int
         """
         return "<div class=\"portlet-msg-error\">" \
                 + "Portlet not implemented yet</div>"
@@ -372,7 +380,7 @@ class TemplatePortlet(Portlet):
              key_language=self._key_language)
 
     def do_render(self, mime_type, mode, window_state, locales, url_generator, 
-                  context_exts = {}, globs_exts = {}, **kwargs):
+                  invocation_id, context_exts = {}, globs_exts = {}, **kwargs):
         theme = kwargs.get("theme", "default")
         theme_path = os.path.join(self._template_dir, "themes", theme)
         if not os.path.exists(theme_path):
@@ -388,7 +396,9 @@ class TemplatePortlet(Portlet):
         globs = tenjin.helpers.__dict__
         globs.update({ "_": translation.ugettext,
                        "event_url": url_generator.event_url,
-                       "resource_url": url_generator.resource_url })
+                       "resource_url": url_generator.resource_url,
+                       "_pl": (lambda name: "_" + str(invocation_id) \
+                               + "_" + name) })
         return self._engine.render(self._name + ".pyhtml",  
                                    context = context, globals = globs)
 

@@ -586,6 +586,7 @@ class PortalView(BaseComponent):
             if self._translation.language:
                 response.headers["Content-Language"] \
                     = self._translation.language.replace("_", "-")
+            self._portlet_counter = 0
 
         def run(self):
             context = { "portal_view": self._view,
@@ -602,8 +603,10 @@ class PortalView(BaseComponent):
                 engine. It fires the :class:`RenderPortlet` event and waits
                 for the result to become available.
                 """
-                evt = RenderPortlet(mime_type, mode, window_state, locales, 
-                                    self._view._ugFactory, **kwargs)
+                evt = RenderPortlet \
+                    (mime_type, mode, window_state, locales, 
+                     self._view._ugFactory, self._portlet_counter, **kwargs)
+                self._portlet_counter += 1
                 evt.success_channels = [self._view.channel]
                 evt.sync = Semaphore(0)
                 self._view.fire(evt, portlet.channel)
