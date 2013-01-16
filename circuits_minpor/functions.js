@@ -1,7 +1,13 @@
+/**
+ * CirMinPor establishes a namespace for the JavaScript functions
+ * that are provided by the portal.
+ */
 CirMinPor = {
 
-_eventHandlers: [],
-
+/**
+ * This function changes the protocol of an HTTP url to the corresponding
+ * web socket url. 
+ */
 wsUrl: function(path) {
     var loc = window.location;
     var url = "ws:";
@@ -14,36 +20,69 @@ wsUrl: function(path) {
     }
     url += path;
     return url;
-},
-
-_openEventExchange: function (resourceUrl) {
-  if ("WebSocket" in window && JSON) {
-     // Let us open a web socket
-     var ws = new WebSocket(CirMinPor.wsUrl(resourceUrl));
-     ws.onmessage = function (evt) {
-        data = JSON.parse(evt.data);
-        channel = data[0];
-        name = data[1];
-        // alert(CirMinPor._eventHandlers);
-        for (idx in CirMinPor._eventHandlers) {
-           handlerData = CirMinPor._eventHandlers[idx];
-           if ((handlerData[0] == "*" || handlerData[0] == channel)
-               && (handlerData[1] == "*" || handlerData[1] == name)) {
-              handlerData[2](data.slice(2));
-           }
-        }
-     };
-  } else {
-     CirMinPor.addMessage(CirMinPor._strings.WebSocketsUnavailable, "error");
-  }
-},
-
-addEventExchangeHandler: function (handle, name, func) {
-    CirMinPor._eventHandlers.push([handle, name, func]);
 }
 
 };
 
+/**
+ * Creates a function in namespace CirMinPor.
+ * 
+ * addEventExchangeHandler(handle, name, func) adds an event exchange handler.
+ * Handlers are invoked when an event
+ * is received from the server. Parameter "handle" is the handle (id) of
+ * a portlet, "portal" or "*" and used to filter the events delivered to the
+ * handler. Parameter "name" may be used to restrict the events delivered
+ * to events with a given name (use "*" to get all events). Parameter
+ * "func" is the function that is to be invoked. Upon invocation, the
+ * data associated with the event is passed as an array parameter to the
+ * function. 
+ */
+(function() {
+	var eventHandlers = [];
+
+	/**
+	 * An internal helper function invoked by the portal after the page
+	 * has loaded that opens the websocket connection for exchanging
+	 * events with the server.
+	 */
+	CirMinPor._openEventExchange = function (resourceUrl) {
+	  if ("WebSocket" in window && JSON) {
+	     // Let us open a web socket
+	     var ws = new WebSocket(CirMinPor.wsUrl(resourceUrl));
+	     ws.onmessage = function (evt) {
+	        data = JSON.parse(evt.data);
+	        channel = data[0];
+	        name = data[1];
+	        // alert(CirMinPor._eventHandlers);
+	        for (idx in eventHandlers) {
+	           handlerData = eventHandlers[idx];
+	           if ((handlerData[0] == "*" || handlerData[0] == channel)
+	               && (handlerData[1] == "*" || handlerData[1] == name)) {
+	              handlerData[2](data.slice(2));
+	           }
+	        }
+	     };
+	  } else {
+	     CirMinPor.addMessage(CirMinPor._strings.WebSocketsUnavailable, "error");
+	  }
+	};
+	
+	CirMinPor.addEventExchangeHandler = function (handle, name, func) {
+	    eventHandlers.push([handle, name, func]);
+	}
+	
+})();
+
+/**
+ * Creates two functions in namespace CirMinPor.
+ * 
+ * addMessage(text, class) appends the given
+ * message to the top message display in a div with the given class.
+ * It returns an id that can be used to remove the message later.
+ * 
+ * removeMessage(id) removes the message with the
+ * given id from the top message display.
+ */
 (function() {
   var counter = 0;
 
@@ -60,6 +99,7 @@ addEventExchangeHandler: function (handle, name, func) {
     msgList.appendChild(newItem);
     var msgDiv = document.getElementById("topMessageDisplay");
     msgDiv.style.display = "block";
+    return id;
   };
   
   CirMinPor.removeMessage = function(id) {
@@ -72,7 +112,7 @@ addEventExchangeHandler: function (handle, name, func) {
         msgDiv.style.display = "none";
       }
     }
-  }
+  };
 })();
 
 // Simple JavaScript Templating
