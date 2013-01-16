@@ -19,13 +19,14 @@
 .. moduleauthor:: mnl
 """
 from circuits_minpor.portlet import TemplatePortlet, Portlet
-from circuits_bricks.web.dispatchers.websockets import WebSockets
 from circuits_bricks.core.timers import Timer
 from circuits.core.events import Event
 from circuits.core.handlers import handler
-from circuits.net.sockets import Write
 import datetime
 from circuits_minpor.portal import PortalChange
+
+class OnOffChanged(Event):
+    pass
 
 class ServerTimePortlet(TemplatePortlet):
 
@@ -34,20 +35,32 @@ class ServerTimePortlet(TemplatePortlet):
             .__init__("templates", "servertime", *args, **kwargs)
         self._portal_channel = None
         self._time_channel = self.channel + "-time"
-        evt = Event.create("TimeOver")
-        evt.channels = (self.channel,)
-        Timer(1, evt, persist=True).register(self)
+        self._timer = None
 
     def description(self, locales=[]):
         return Portlet.Description\
             (self._handle, self.translation(locales) \
                 .ugettext("Server Time Portlet"),
-             events=[])
+             events=[(OnOffChanged, self.channel)])
 
     @handler("portlet_added")
     def _on_portlet_added(self, portal, portlet):
         self._portal_channel = portal.channel
 
+    @property
+    def updating(self):
+        return getattr(self, "_timer", None) is not None
+
+    @handler("on_off_changed")
+    def _on_off_changed(self, value):
+        if value and self._timer is None:
+            evt = Event.create("TimeOver")
+            evt.channels = (self.channel,)
+            self._timer = Timer(1, evt, persist=True).register(self)
+        if not value and self._timer is not None:
+            self._timer.unregister()
+            self._timer = None
+    
     @handler("time_over")
     def _on_time_over(self):
         if self._portal_channel is None:

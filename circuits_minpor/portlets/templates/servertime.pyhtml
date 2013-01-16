@@ -2,6 +2,11 @@
 <?py from circuits_minpor import Portlet ?>
 
 <div>
+  <input type="checkbox"
+<?py if portlet.updating: ?>
+    checked
+<?py #endif ?>
+    id="{== _pl("onoff") ==}">
   <div style="display: inline;" id="{== _pl("display") ==}">...</div>
   (<a href="#" id="{== _pl("help_button") ==}">?</a>)
 </div>
@@ -14,6 +19,12 @@
 <script type="text/javascript">
 document.getElementById("{== _pl("help_button") ==}").onclick = function () {
     CirMinPor.addMessage("{= _("ServerTimePortletHelp") =}");
+}
+
+document.getElementById("{== _pl("onoff") ==}").onclick = function () {
+    CirMinPor.sendEvent("{== portlet.description().handle ==}", 
+                        "circuits_minpor.portlets.servertime.OnOffChanged",
+                        [this.checked]);
 }
 
 CirMinPor.addEventExchangeHandler("{== portlet.description().handle ==}",

@@ -21,7 +21,7 @@
 from circuits.web import tools
 from circuits.core.components import BaseComponent
 from circuits.web.servers import BaseServer
-from circuits.web.events import WebEvent, Request
+from circuits.web.events import WebEvent
 import os
 from circuits.core.handlers import handler
 import tenjin
@@ -136,9 +136,6 @@ class Portal(BaseComponent):
         ThemeSelection(channel = server.channel).register(server)
         view = PortalView(self, channel = server.channel).register(server)
         self._url_generator_factory = view.url_generator_factory
-        self._event_exchange_channel = self.channel + "-eventExchange" 
-        WebSockets(self._prefix + "/eventExchange", channel=self.channel,
-                   wschannel=self._event_exchange_channel).register(self)
         self._supported_locales = []
         for locale in rbtranslations.available_translations\
             ("l10n", self._templates_path, "en"):
@@ -160,7 +157,6 @@ class Portal(BaseComponent):
                     self._portlets.insert(idx, c)
                     del self._portlets[len(self._portlets) - 1]
                     break;
-            self._enabled_events_changed = True
 
     @handler("unregistered")
     def _on_unregistered(self, c, m):
@@ -169,19 +165,6 @@ class Portal(BaseComponent):
         if c in self._portlets:
             self._portlets.remove(c)
             self.fire(PortletRemoved(self, c), c)
-            self._enabled_events_changed = True
-
-    @handler("portal_change")
-    def _on_portal_change(self, portlet, name, *args):
-        if portlet is None:
-            handle = "portal"
-        else:
-            handle = portlet.description().handle
-        data = [ handle, name ]
-        for arg in args:
-            data.append(arg)
-        msg = json.dumps(data)
-        self.fire(Write(None, msg), self._event_exchange_channel)
 
     @property
     def prefix(self):
@@ -302,6 +285,17 @@ class PortalView(BaseComponent):
         self._session_cookie = self.channel + ".session" 
         Sessions(channel = self.channel, 
                  name=self._session_cookie).register(self)
+        self._event_exchange_channel = self._portal.channel + "-eventExchange"
+        WebSockets(self._portal_prefix + "/eventExchange", channel=self.channel,
+                   wschannel=self._event_exchange_channel).register(self)
+        @handler("portal_change", channel=self._portal.channel)
+        def _on_portal_change_handler(self, portlet, name, *args):
+            self._on_portal_change(portlet, name, *args)
+        self.addHandler(_on_portal_change_handler)
+        @handler("read", channel=self._event_exchange_channel)
+        def _on_read_message_handler(self, socket, data):
+            self._on_read_message(socket, data)
+        self.addHandler(_on_read_message_handler)
 
     @handler("registered", channel="*")
     def _on_registered(self, c, m):
@@ -458,19 +452,23 @@ class PortalView(BaseComponent):
             # Perform requested portlet state changes
             self._perform_portlet_state_changes(portlet, path_segs)
             # Get requested events
-            evt = self._requested_event(path_segs, event, request, response)
-            
-            if evt:
-                self._waiting_for = evt
-                @handler("%s_complete" % evt.name, channel=evt.channels[0])
-                def _on_complete(dispatcher, e, value):
-                    if id(self._waiting_for) == id(e):
-                        self._waiting_for = None
-                self.addHandler(_on_complete)
-                self.fireEvent(evt)
-                while self._waiting_for:
-                    yield None
-                self.removeHandler(_on_complete)
+            if len(path_segs) >= 3 and path_segs[0] == "event":
+                evt = self._requested_event (path_segs[1], [], 
+                     getattr(event, "kwargs", {}), path_segs[2])
+                del path_segs[0:3]
+                
+                if evt:
+                    evt.complete = True
+                    self._waiting_for = evt
+                    @handler("%s_complete" % evt.name, channel=evt.channels[0])
+                    def _on_complete(dispatcher, e, value):
+                        if id(self._waiting_for) == id(e):
+                            self._waiting_for = None
+                    self.addHandler(_on_complete)
+                    self.fireEvent(evt)
+                    while self._waiting_for:
+                        yield None
+                    self.removeHandler(_on_complete)
     
         # Render portal
         event.portal_response = None
@@ -511,12 +509,7 @@ class PortalView(BaseComponent):
         if window_state == "solo":
             self._add_solo(portlet)
 
-    def _requested_event(self, path_segs, event, request, response):
-        if len(path_segs) < 3 or path_segs[0] != "event":
-            return None
-        evt_class = path_segs[1]
-        channel = path_segs[2]
-        del path_segs[0:3]
+    def _requested_event(self, evt_class, args, kwargs, channel):
         if not self._check_event(evt_class, channel):
             return None
         try:
@@ -527,16 +520,12 @@ class PortalView(BaseComponent):
                           "Unknown event class in event URL: " + evt_class))
             return None
         try:
-            if event.kwargs:
-                evnt = clazz(**event.kwargs)
-            else:
-                evnt = clazz()
+            evnt = clazz(*args, **kwargs)
         except Exception:
             self.fire(Log(logging.ERROR, 
                           "Cannot create event: " + str(sys.exc_info()[1])))
             return None
         evnt.channels = (channel,)
-        evnt.complete = True
         return evnt
                 
     def _check_event(self, event_name, channel):
@@ -635,4 +624,28 @@ class PortalView(BaseComponent):
     def _render_portlet_success (self, e, *args, **kwargs):
         e.sync.release()
 
+    # Attached as handler to portal channel in __init__
+    def _on_portal_change(self, portlet, name, *args):
+        if portlet is None:
+            handle = "portal"
+        else:
+            handle = portlet.description().handle
+        data = [ handle, name ]
+        for arg in args:
+            data.append(arg)
+        msg = json.dumps(data)
+        self.fire(Write(None, msg), self._event_exchange_channel)
                 
+    # Attached as handler to portal channel in __init__
+    def _on_read_message(self, socket, data):
+        evt_data = json.loads(data)
+        handle = evt_data[0]
+        # be a bit suspicious
+        if handle == "portal":
+            handle = self.channel
+            return
+        args = evt_data[2]
+        if not isinstance(args, list):
+            args = [args]
+        evt = self._requested_event (evt_data[1], args, {}, handle)
+        self.fire(evt)

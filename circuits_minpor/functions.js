@@ -38,6 +38,7 @@ wsUrl: function(path) {
  * function. 
  */
 (function() {
+	var ws;
 	var eventHandlers = [];
 
 	/**
@@ -48,7 +49,7 @@ wsUrl: function(path) {
 	CirMinPor._openEventExchange = function (resourceUrl) {
 	  if ("WebSocket" in window && JSON) {
 	     // Let us open a web socket
-	     var ws = new WebSocket(CirMinPor.wsUrl(resourceUrl));
+	     ws = new WebSocket(CirMinPor.wsUrl(resourceUrl));
 	     ws.onmessage = function (evt) {
 	        data = JSON.parse(evt.data);
 	        channel = data[0];
@@ -71,6 +72,11 @@ wsUrl: function(path) {
 	    eventHandlers.push([handle, name, func]);
 	}
 	
+	CirMinPor.sendEvent = function(handle, name, args) {
+		ws.send(JSON.stringify([handle, name, args]));
+	}
+
+
 })();
 
 /**
