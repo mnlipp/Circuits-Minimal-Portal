@@ -54,6 +54,12 @@ wsUrl: function(path) {
 	        data = JSON.parse(evt.data);
 	        channel = data[0];
 	        name = data[1];
+	        if (channel == "portal") {
+	        	if (name == "portal_message") {
+	        		CirMinPor.addMessage(data[2], data[3])
+	        	}
+	        	return;
+	        }
 	        // alert(CirMinPor._eventHandlers);
 	        for (idx in eventHandlers) {
 	           handlerData = eventHandlers[idx];
@@ -73,7 +79,8 @@ wsUrl: function(path) {
 	}
 	
 	CirMinPor.sendEvent = function(handle, name, args) {
-		ws.send(JSON.stringify([handle, name, args]));
+		env = { locales: CirMinPor._locales }
+		ws.send(JSON.stringify([handle, name, args, env]));
 	}
 
 

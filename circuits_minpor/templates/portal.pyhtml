@@ -13,6 +13,11 @@
   CirMinPor._strings = {
     WebSocketsUnavailable: "{== _("WebSocketsUnavailable") ==}"
   };
+  CirMinPor._locales = [
+  <?py for locale in locales: ?>
+    "{== locale ==}",
+  <?py #endfor ?>
+  ];
   </script>
   <script src="{== resource_url("portal-resource/date_format.js") ==}" type="text/javascript"></script>
   <script type="text/javascript">

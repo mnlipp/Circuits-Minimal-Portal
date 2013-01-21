@@ -56,7 +56,7 @@ class PortletRemoved(Event):
     :param portlet: the portlet comoponent
     """
 
-class PortalChange(Event):
+class PortalUpdate(Event):
     """
     An event that is forwarded to the browser.
     :param portlet: the portlet where the change occured or None if
@@ -65,6 +65,24 @@ class PortalChange(Event):
     
     Arbitrary additional arguments may be added provided that
     they can be serialized using json.dump.  
+    """
+
+class PortalClientConnect(Event):
+    """
+    This event signals that a client has connected to the event
+    exchange. This is event can be used by portlets with dynamic content
+    to immediately fire an event to update (actually initialize) the content.
+    """
+
+class PortalMessage(Event):
+    """
+    This event can be used to add a message to the portal's top
+    message display.
+    
+    :param message: the message to display.
+    :type message: string
+    :param class: (optional) a CSS class to be used for the message display.
+    :type class: string
     """
 
 class Portal(BaseComponent):
@@ -165,6 +183,10 @@ class Portal(BaseComponent):
         if c in self._portlets:
             self._portlets.remove(c)
             self.fire(PortletRemoved(self, c), c)
+
+    @handler("portal_message")
+    def _on_portal_message(self, message, clazz=""):
+        self.fire(PortalUpdate(None, "portal_message", message, clazz))
 
     @property
     def prefix(self):
@@ -288,10 +310,14 @@ class PortalView(BaseComponent):
         self._event_exchange_channel = self._portal.channel + "-eventExchange"
         WebSockets(self._portal_prefix + "/eventExchange", channel=self.channel,
                    wschannel=self._event_exchange_channel).register(self)
-        @handler("portal_change", channel=self._portal.channel)
-        def _on_portal_change_handler(self, portlet, name, *args):
-            self._on_portal_change(portlet, name, *args)
-        self.addHandler(_on_portal_change_handler)
+        @handler("connect", channel=self._event_exchange_channel)
+        def _on_client_connect(*args):
+            self.fire(PortalClientConnect(), self._portal.channel)
+        self.addHandler(_on_client_connect)
+        @handler("portal_update", channel=self._portal.channel)
+        def _on_portal_update_handler(self, portlet, name, *args):
+            self._on_portal_update(portlet, name, *args)
+        self.addHandler(_on_portal_update_handler)
         @handler("read", channel=self._event_exchange_channel)
         def _on_read_message_handler(self, socket, data):
             self._on_read_message(socket, data)
@@ -625,7 +651,7 @@ class PortalView(BaseComponent):
         e.sync.release()
 
     # Attached as handler to portal channel in __init__
-    def _on_portal_change(self, portlet, name, *args):
+    def _on_portal_update(self, portlet, name, *args):
         if portlet is None:
             handle = "portal"
         else:
@@ -647,5 +673,5 @@ class PortalView(BaseComponent):
         args = evt_data[2]
         if not isinstance(args, list):
             args = [args]
-        evt = self._requested_event (evt_data[1], args, {}, handle)
+        evt = self._requested_event (evt_data[1], args, evt_data[3], handle)
         self.fire(evt)

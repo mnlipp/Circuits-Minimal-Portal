@@ -23,7 +23,8 @@ from circuits_bricks.core.timers import Timer
 from circuits.core.events import Event
 from circuits.core.handlers import handler
 import datetime
-from circuits_minpor.portal import PortalChange
+from circuits_minpor.portal import PortalUpdate, PortalMessage
+from circuits_bricks.web.filters import LanguagePreferences
 
 class OnOffChanged(Event):
     pass
@@ -46,26 +47,37 @@ class ServerTimePortlet(TemplatePortlet):
     @handler("portlet_added")
     def _on_portlet_added(self, portal, portlet):
         self._portal_channel = portal.channel
+        @handler("portal_client_connect", channel=portal.channel)
+        def _on_client_connect(*args):
+            self._update_time()
+        self.addHandler(_on_client_connect)
+
+    def _update_time(self):
+        if self._portal_channel is None:
+            return
+        td = datetime.datetime.utcnow() - datetime.datetime(1970, 1, 1)
+        td = td.microseconds / 1000 + (td.seconds + td.days * 86400) * 1000
+        td = int(td)
+        self.fire(PortalUpdate(self, "new_time", str(td)), self._portal_channel)
 
     @property
     def updating(self):
         return getattr(self, "_timer", None) is not None
 
     @handler("on_off_changed")
-    def _on_off_changed(self, value):
+    def _on_off_changed(self, value, **kwargs):
         if value and self._timer is None:
             evt = Event.create("TimeOver")
             evt.channels = (self.channel,)
             self._timer = Timer(1, evt, persist=True).register(self)
+            locales = kwargs.get("locales", [])
+            self.fire(PortalMessage(self.translation(locales) \
+                                    .ugettext("TimeUpdateOn")),
+                      self._portal_channel)
         if not value and self._timer is not None:
             self._timer.unregister()
             self._timer = None
     
     @handler("time_over")
     def _on_time_over(self):
-        if self._portal_channel is None:
-            return
-        td = datetime.datetime.utcnow() - datetime.datetime(1970, 1, 1)
-        td = td.microseconds / 1000 + (td.seconds + td.days * 86400) * 1000
-        td = int(td)
-        self.fire(PortalChange(self, "new_time", str(td)), self._portal_channel)
+        self._update_time()
