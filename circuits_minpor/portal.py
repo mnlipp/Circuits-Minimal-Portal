@@ -38,7 +38,7 @@ import urllib
 import sys
 import logging
 from circuits.core.events import Event
-from circuits_bricks.web.dispatchers.websockets import WebSockets
+from circuits.web.dispatchers.websockets import WebSockets
 import json
 from circuits.net.sockets import Write
 
