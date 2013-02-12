@@ -490,11 +490,11 @@ class PortalView(BaseComponent):
                     def _on_complete(dispatcher, e, value):
                         if id(self._waiting_for) == id(e):
                             self._waiting_for = None
-                    self.addHandler(_on_complete)
+                    complete_handler = self.addHandler(_on_complete)
                     self.fireEvent(evt)
                     while self._waiting_for:
                         yield None
-                    self.removeHandler(_on_complete)
+                    self.removeHandler(complete_handler)
     
         # Render portal
         event.portal_response = None
