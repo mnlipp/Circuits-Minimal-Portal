@@ -4,6 +4,7 @@
 .. _circuits framework: http://packages.python.org/circuits
 .. _circuits-bricks: http://pypi.python.org/pypi/circuits-bricks
 .. _rbtranslations: http://pypi.python.org/pypi/rbtranslations
+.. _Tenjin: http://pypi.python.org/pypi/Tenjin
 .. _circuits-minpor Page on PyPI: http://pypi.python.org/pypi/circuits-minpor
 .. _Package Documentation: http://packages.python.org/circuits-minpor
 .. _github: https://github.com/mnlipp/Circuits-Minimal-Portal
@@ -24,7 +25,8 @@ Requirements
 
 circuits-minpor depends on the `Python Standard Library`_,
 the `circuits framework`_ in the 2.0.1 version,
-the general purpose `circuits_bricks` components and the
+the general purpose `circuits_bricks` components, the
+`Tenjin` template engine and the
 `rbtranslations` library. Both circuits bricks and the
 resource bundle translations library are small libraries
 that have been developed in parallel with the portal
