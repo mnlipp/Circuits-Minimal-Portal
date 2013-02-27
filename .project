@@ -3,7 +3,6 @@
 	<name>CircuitsMinimalPortal</name>
 	<comment></comment>
 	<projects>
-		<project>circuits-dev</project>
 		<project>CircuitsBricks</project>
 		<project>ResourceBundleTranslations</project>
 	</projects>
