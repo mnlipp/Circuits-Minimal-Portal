@@ -1,7 +1,7 @@
 """
 ..
    This file is part of the circuits minimal portal component.
-   Copyright (C) 2012 Michael N. Lipp
+   Copyright (C) 2012-2015 Michael N. Lipp
    
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -24,4 +24,4 @@ from .portlet import Portlet, TemplatePortlet
 
 __all__ = ["Portal", "Portlet", "TemplatePortlet"]
 
-__version__ = "0.3"
+__version__ = "0.4"

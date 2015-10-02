@@ -1,7 +1,7 @@
 """
 ..
    This file is part of the circuits minimal portal component.
-   Copyright (C) 2012 Michael N. Lipp
+   Copyright (C) 2012-2015 Michael N. Lipp
    
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@ from circuits.web import tools
 from circuits.core.components import BaseComponent
 from abc import ABCMeta, abstractmethod
 import uuid
-from circuits.web.errors import NotFound
+from circuits.web.errors import notfound
 from circuits.core.events import Event
 from circuits.core.handlers import handler
 import os
@@ -30,7 +30,7 @@ import rbtranslations
 import tenjin
 import inspect
 
-class RenderPortlet(Event):
+class render_portlet(Event):
     """
     The event sent to portlets when the portal needs their content.
     """
@@ -61,7 +61,7 @@ class RenderPortlet(Event):
             fired during the rendering of a portal page
         :type invocation_id: int
         """
-        super(RenderPortlet, self).__init__\
+        super(render_portlet, self).__init__\
             (mime_type, mode, window_state, locales, 
              url_generator_factory, invocation_id, **kwargs)
 
@@ -70,7 +70,7 @@ class Portlet(BaseComponent):
     """
     A portlet is a component that contributes to the portal's content.
     Content is provided as the result of handling a
-    :class:`~.RenderPortlet` event. Implementations usually override the
+    :class:`~.render_portlet` event. Implementations usually override the
     :meth:`.do_render` method instead of providing the handler themselves.
     
     The interface of the portlet component has been designed with the
@@ -235,7 +235,7 @@ class Portlet(BaseComponent):
         @abstractmethod
         def resource_url(self, resource):
             """
-            Return a URL that generates a :class:`PortletResource`
+            Return a URL that generates a :class:`portlet_resource`
             event (a specialized circuits web
             :class:`~circuits.web.events.Request`) for the given
             *resource*. The handler interface is the same as for the
@@ -253,7 +253,7 @@ class Portlet(BaseComponent):
     class UrlGeneratorFactory(object):
         """
         The URL generator factory is passed to a portlet as
-        attribute of the :class:`~.RenderPortlet` event.
+        attribute of the :class:`~.render_portlet` event.
         """
 
         __metaclass__ = ABCMeta
@@ -353,11 +353,11 @@ class Portlet(BaseComponent):
     def do_portlet_resource(self, request, response, **kwargs):
         """
         This is the method invoked by the handler for 
-        :class:`PortletResource` events. It is provided as a
+        :class:`portlet_resource` events. It is provided as a
         convenience as it is a bit easier to override than the
         handler.
         """
-        return NotFound(request, response)
+        return notfound(request, response)
 
 
 class TemplatePortlet(Portlet):
@@ -411,5 +411,5 @@ class TemplatePortlet(Portlet):
         res_path = os.path.join (self._template_dir, request.path)
         if os.path.exists(res_path):
             return tools.serve_file(request, response, res_path)
-        return NotFound(request, response)
+        return notfound(request, response)
 

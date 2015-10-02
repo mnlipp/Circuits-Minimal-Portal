@@ -1,7 +1,7 @@
 """
 ..
    This file is part of the circuits minimal portal component.
-   Copyright (C) 2012 Michael N. Lipp
+   Copyright (C) 2012-2015 Michael N. Lipp
    
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,67 +18,83 @@
 
 .. moduleauthor:: mnl
 """
-from circuits.web import tools
+from circuits.web import tools, sessions
 from circuits.core.components import BaseComponent
 from circuits.web.servers import BaseServer
-from circuits.web.events import WebEvent
 import os
 from circuits.core.handlers import handler
 import tenjin
 from copy import copy
-from circuits_minpor.portlet import Portlet, RenderPortlet
+from circuits_minpor.portlet import Portlet, render_portlet
 from circuits_minpor.utils import serve_tenjin
-from circuits_bricks.web.filters import LanguagePreferences, ThemeSelection
-from circuits_bricks.app.logger import Log
+from circuits_bricks.web.misc import LanguagePreferences, ThemeSelection
+from circuits_bricks.app.logger import log
 from circuits.web.sessions import Sessions
 from circuits.web.utils import parse_qs, parse_body
+from circuits.web.websockets import WebSocketsDispatcher
 from threading import Thread, Semaphore
 import rbtranslations
 import urllib
 import sys
 import logging
 from circuits.core.events import Event
-from circuits.web.dispatchers.websockets import WebSockets
 import json
-from circuits.net.sockets import Write
+from circuits.net.sockets import write
+from circuits_minpor.utils.dispatcher import WebSocketsDispatcherPlus
 
-class PortletAdded(Event):
+class portlet_added(Event):
     """
     Sent to a Portlet when it is added to a Portal.
     :param portal: the portal component
     :param portlet: the portlet comoponent
     """
 
-class PortletRemoved(Event):
+class portlet_removed(Event):
     """
     Sent to a Portlet when it is removed from a Portal.
     :param portal: the portal component
     :param portlet: the portlet comoponent
     """
 
-class PortalUpdate(Event):
+class portal_client_connect(Event):
     """
-    An event that is forwarded to the browser.
+    This event signals that a client has connected to the event
+    exchange. This is event can be used by portlets with dynamic content
+    to immediately fire an event to update (actually initialize) the content.
+
+    :param session: the session.
+    :type session: dict
+    """
+
+class portal_client_disconnect(Event):
+    """
+    This event signals that a client has disconnected from the event
+    exchange. 
+
+    :param session: the session.
+    :type session: dict
+    :param sock: the web socket that has closed.
+    """
+
+class portal_update(Event):
+    """
+    An event that forwards information (as "event") to the client (browser).
     :param portlet: the portlet where the change occured or None if
-        the change affects the cmplete portal.
-    :param name: a name that further classifies the change.
+        the change affects the complete portal.
+    :param session: the session.
+    :param name: a name that further classifies the information ("event name").
+    :param *args: more information to be sent.
     
     Arbitrary additional arguments may be added provided that
     they can be serialized using json.dump.  
     """
 
-class PortalClientConnect(Event):
-    """
-    This event signals that a client has connected to the event
-    exchange. This is event can be used by portlets with dynamic content
-    to immediately fire an event to update (actually initialize) the content.
-    """
-
-class PortalMessage(Event):
+class portal_message(Event):
     """
     This event can be used to add a message to the portal's top
     message display.
     
+    :param session: the session.
     :param message: the message to display.
     :type message: string
     :param class: (optional) a CSS class to be used for the message display.
@@ -169,7 +185,7 @@ class Portal(BaseComponent):
             return
         if not c in self._portlets:
             self._portlets.append(c)
-            self.fire(PortletAdded(self, c), c)
+            self.fire(portlet_added(self, c), c)
             for idx, p in enumerate(self._portlets):
                 if c.weight < p.weight:
                     self._portlets.insert(idx, c)
@@ -182,11 +198,11 @@ class Portal(BaseComponent):
             return
         if c in self._portlets:
             self._portlets.remove(c)
-            self.fire(PortletRemoved(self, c), c)
+            self.fire(portlet_removed(self, c), c)
 
     @handler("portal_message")
-    def _on_portal_message(self, message, clazz=""):
-        self.fire(PortalUpdate(None, "portal_message", message, clazz))
+    def _on_portal_message(self, session, message, clazz=""):
+        self.fire(portal_update(None, session, "portal_message", message, clazz))
 
     @property
     def prefix(self):
@@ -213,6 +229,16 @@ class Portal(BaseComponent):
 
     def url_generator(self, portlet):
         return self._url_generator_factory.make_generator(portlet)
+
+class portlet_resource(Event):
+    """request(Event) -> request Event
+
+    args: request, response
+    """
+
+    success = True
+    failure = True
+    complete = True
 
 class _TabInfo(object):
     
@@ -304,24 +330,50 @@ class PortalView(BaseComponent):
         self._portal_prefix = portal.prefix
         self._portal_path = "/" if portal.prefix == "" else portal.prefix
         self._ugFactory = PortalView._UGFactory(portal.prefix)
-        self._session_cookie = self.channel + ".session" 
         Sessions(channel = self.channel, 
-                 name=self._session_cookie).register(self)
+                 name=self.channel + ".session").register(self)
         self._event_exchange_channel = self._portal.channel + "-eventExchange"
-        WebSockets(self._portal_prefix + "/eventExchange", channel=self.channel,
-                   wschannel=self._event_exchange_channel).register(self)
+        WebSocketsDispatcherPlus(self._portal_prefix + "/eventExchange", 
+                channel=self.channel,
+                wschannel=self._event_exchange_channel).register(self)
+                
+        # Handle web socket connects from client
         @handler("connect", channel=self._event_exchange_channel)
-        def _on_client_connect(*args):
-            self.fire(PortalClientConnect(), self._portal.channel)
-        self.addHandler(_on_client_connect)
+        def _on_ws_connect(self, event, sock, *peername, **kwargs):
+            session = kwargs.get("session")
+            if session:
+                session["client_connection"] = sock
+            self.fire(portal_client_connect(session), \
+                      self._portal.channel)
+        self.addHandler(_on_ws_connect)
+        
+        # Handle web socket disconnects from client
+        @handler("disconnect", channel=self._event_exchange_channel)
+        def _on_ws_disconnect(self, event, sock, *peername, **kwargs):
+            session = kwargs.get("session")
+            if self.client_connection(session) == sock:
+                session["client_connection"] = None
+            self.fire(portal_client_disconnect(session, sock), \
+                      self._portal.channel)
+        self.addHandler(_on_ws_disconnect)
+        
+        # Handle a portal update event                
         @handler("portal_update", channel=self._portal.channel)
-        def _on_portal_update_handler(self, portlet, name, *args):
-            self._on_portal_update(portlet, name, *args)
+        def _on_portal_update_handler(self, portlet, session, name, *args):
+            self._on_portal_update(portlet, session, name, *args)
         self.addHandler(_on_portal_update_handler)
+        
+        # Handle a message from the client
         @handler("read", channel=self._event_exchange_channel)
-        def _on_read_message_handler(self, socket, data):
-            self._on_read_message(socket, data)
-        self.addHandler(_on_read_message_handler)
+        def _on_ws_read(self, socket, data, **kwargs):
+            self._on_message_from_client(kwargs.get("session"), data)
+        self.addHandler(_on_ws_read)
+
+    @classmethod
+    def client_connection(cls, session):
+        if not session is None:
+            return session.get("client_connection")
+        return None
 
     @handler("registered", channel="*")
     def _on_registered(self, c, m):
@@ -340,51 +392,45 @@ class PortalView(BaseComponent):
         return getattr(self, "_portal", None)
 
     @property
-    def tabs(self):
-        return self._session.get("_tabs", [])
-
-    @property
-    def theme(self):
-        return getattr(self._session, "_theme", "default")
-
-    @property
-    def configuring(self):
-        return self._session.get("_configuring", None)
-
-    @property
     def url_generator_factory(self):
         return getattr(self, "_ugFactory", None)
 
-    def _select_tab(self, tab_id):
+    def tabs(self, session):
+        return session.get("_tabs", [])
+
+    def configuring(self, session):
+        return session.get("_configuring", None)
+
+    def _select_tab(self, session, tab_id):
         found = False
-        for tab in self._session["_tabs"]:
+        for tab in session["_tabs"]:
             tab._selected = (id(tab) == tab_id)
             found = found or tab._selected
         if not found:
-            self._session["_tabs"][0]._selected = True
+            session["_tabs"][0]._selected = True
 
-    def _close_tab(self, tab_id):
-        tabs = filter(lambda x: id(x) == tab_id, self._session["_tabs"])
+    def _close_tab(self, session, tab_id):
+        tabs = filter(lambda x: id(x) == tab_id, session["_tabs"])
         if len(tabs) == 0:
             return
         closed = tabs[0]
-        closed_idx = self._session["_tabs"].index(closed)
-        del self._session["_tabs"][closed_idx]
+        closed_idx = session["_tabs"].index(closed)
+        del session["_tabs"][closed_idx]
         if closed._selected:
-            if len(self._session["_tabs"]) > closed_idx:
-                self._session["_tabs"][closed_idx]._selected = True
+            if len(session["_tabs"]) > closed_idx:
+                session["_tabs"][closed_idx]._selected = True
             else:
-                self._session["_tabs"][0]._selected = True
+                session["_tabs"][0]._selected = True
 
-    def _add_solo(self, portlet):
+    def _add_solo(self, session, portlet):
         solo_tabs = filter(lambda x: x.portlet 
-                           == portlet, self._session["_tabs"])
+                           == portlet, session["_tabs"])
         if len(solo_tabs) > 0:
             self._select_tab(id(solo_tabs[0]))
             return
         tab = _TabInfo("_solo", closeable=True, portlet=portlet)
-        self._session["_tabs"].append(tab)
-        self._select_tab(id(tab))
+        session["_tabs"].append(tab)
+        self._select_tab(session, id(tab))
 
     def _is_portal_request(self, request):
         return request.path == self._portal_path \
@@ -406,6 +452,7 @@ class PortalView(BaseComponent):
         # Decode query parameters and body
         event.kwargs = parse_qs(request.qs)
         parse_body(request, response, event.kwargs)
+        session = request.session
         # Is this a portal request?
         if request.path.startswith(self._portal_resource):
             request.path = request.path[len(self._portal_resource):]
@@ -418,8 +465,9 @@ class PortalView(BaseComponent):
         if request.path.startswith(self._theme_resource):
             request.path = request.path[len(self._theme_resource):]
             for directory in self._portal._templates_path:
-                res = os.path.join(directory, "themes", 
-                                   ThemeSelection.selected(), request.path)
+                res = os.path.join \
+                    (directory, "themes", 
+                     ThemeSelection.selected(session), request.path)
                 if os.path.exists(res):
                     return tools.serve_file(request, response, res)
             return
@@ -429,10 +477,10 @@ class PortalView(BaseComponent):
             if len(segs) >= 2:
                 request.path = "/".join(segs[1:])
                 event.kwargs.update\
-                    ({ "theme": ThemeSelection.selected(),
-                       "locales": LanguagePreferences.preferred()})
-                return self.fire (WebEvent.create("PortletResource", 
-                                  *event.args, **event.kwargs), segs[0])
+                    ({ "theme": ThemeSelection.selected(session),
+                       "locales": LanguagePreferences.preferred(request)})
+                return self.fire (portlet_resource(*event.args, 
+                                                   **event.kwargs), segs[0])
 
     @handler("request", filter=True, priority=0.09)
     def _on_portal_request(self, event, request, response, peer_cert=None):
@@ -457,9 +505,9 @@ class PortalView(BaseComponent):
         if not self._is_portal_request(request):
             return
 
-        self._session = request.session        
-        if not self._session.has_key("_tabs"):
-            request.session["_tabs"] = [_TabInfo("_dashboard", selected=True)]
+        session = request.session        
+        if not session.has_key("_tabs"):
+            session["_tabs"] = [_TabInfo("_dashboard", selected=True)]
         
         path_segs = urllib.unquote \
             (request.path[len(self._portal_prefix)+1:]).split("/")
@@ -476,10 +524,11 @@ class PortalView(BaseComponent):
 
         if portlet != None:
             # Perform requested portlet state changes
-            self._perform_portlet_state_changes(portlet, path_segs)
+            self._perform_portlet_state_changes(session, portlet, path_segs)
             # Get requested events
             if len(path_segs) >= 3 and path_segs[0] == "event":
-                evt = self._requested_event (path_segs[1], [], 
+                evt = self._create_event_from_request \
+                    (session, path_segs[1], [], 
                      getattr(event, "kwargs", {}), path_segs[2])
                 del path_segs[0:3]
                 
@@ -487,7 +536,7 @@ class PortalView(BaseComponent):
                     evt.complete = True
                     self._waiting_for = evt
                     @handler("%s_complete" % evt.name, channel=evt.channels[0])
-                    def _on_complete(dispatcher, e, value):
+                    def _on_complete(self, e, value):
                         if id(self._waiting_for) == id(e):
                             self._waiting_for = None
                     complete_handler = self.addHandler(_on_complete)
@@ -515,40 +564,41 @@ class PortalView(BaseComponent):
             LanguagePreferences\
                 .override_accept(request.session, [kwargs["language"]])
         elif action == "select":
-            self._select_tab(int(kwargs.get("tab")))
+            self._select_tab(request.session, int(kwargs.get("tab")))
         elif action == "close":
-            self._close_tab(int(kwargs.get("tab")))
+            self._close_tab(request.session, int(kwargs.get("tab")))
         elif action == "finish-editing":
-            del self._session["_configuring"]
+            del request.session["_configuring"]
 
-    def _perform_portlet_state_changes(self, portlet, path_segs):
+    def _perform_portlet_state_changes(self, session, portlet, path_segs):
         if len(path_segs) < 2 or path_segs[0] == "event":
             return
         mode = path_segs[0]
         window_state = path_segs[1]
         del path_segs[0:2]
-        if self._session.get("_configuring", None) == portlet \
+        if session.get("_configuring", None) == portlet \
             and mode != "edit":
-            del self._session["_configuring"]
+            del session["_configuring"]
         if mode == "edit":
-            self._session["_configuring"] = portlet
+            session["_configuring"] = portlet
         if window_state == "solo":
-            self._add_solo(portlet)
+            self._add_solo(session, portlet)
 
-    def _requested_event(self, evt_class, args, kwargs, channel):
+    def _create_event_from_request \
+            (self, session, evt_class, args, kwargs, channel):
         if not self._check_event(evt_class, channel):
             return None
         try:
             names = evt_class.split(".")
             clazz = reduce(getattr, names[1:], sys.modules[names[0]])
         except AttributeError:
-            self.fire(Log(logging.ERROR, 
+            self.fire(log(logging.ERROR, 
                           "Unknown event class in event URL: " + evt_class))
             return None
         try:
-            evnt = clazz(*args, **kwargs)
+            evnt = clazz(session, *args, **kwargs)
         except Exception:
-            self.fire(Log(logging.ERROR, 
+            self.fire(log(logging.ERROR, 
                           "Cannot create event: " + str(sys.exc_info()[1])))
             return None
         evnt.channels = (channel,)
@@ -575,16 +625,42 @@ class PortalView(BaseComponent):
         """
         Render the portal using the "top" template. The template needs
         the individual portlet's content at certain points. As we want
-        that content to be provided as response to a :class:`RenderPortlet`
+        that content to be provided as response to a :class:`render_portlet`
         event, we have to suspend the execution of the template until the
         response becomes available. If tenjin was made for circuits, it could
         yield until the results becomes available. As this is not the case,
         we execute the template in its own thread. Whenever portlet
-        content is required, the :class:`RenderPortlet` event is fired
+        content is required, the :class:`render_portlet` event is fired
         and execution suspended by waiting on a semaphore. The render
         request is executed in the main thread and its completion signaled
         back to the template processor using the semaphore.
         """
+
+        class _PortalWrapper(object):
+                
+            def __init__(self, portal_view, session):
+                self._session = session
+                self._portal_view = portal_view
+    
+            @property
+            def title(self):
+                return self._portal_view.portal.title
+            
+            @property
+            def configuring(self):
+                return self._portal_view.configuring(self._session)
+    
+            @property
+            def supported_locales(self):
+                return self._portal_view.portal.supported_locales
+    
+            @property
+            def tabs(self):
+                return self._portal_view.tabs(self._session)
+    
+            @property
+            def portlets(self):
+                return self._portal_view.portal.portlets
 
         def __init__(self, view, req_evt, request, response):
             super(PortalView._RenderThread, self).__init__()
@@ -593,8 +669,8 @@ class PortalView(BaseComponent):
             self._req_evt = req_evt
             self._request = request
             self._response = response
-            self._theme = ThemeSelection.selected()
-            self._locales = LanguagePreferences.preferred()
+            self._theme = ThemeSelection.selected(request.session)
+            self._locales = LanguagePreferences.preferred(request)
             self._translation = rbtranslations.translation\
                 ("l10n", view._portal._templates_path, 
                  self._locales, "en")
@@ -604,7 +680,8 @@ class PortalView(BaseComponent):
             self._portlet_counter = 0
 
         def run(self):
-            context = { "portal_view": self._view,
+            portal = self._PortalWrapper(self._view, self._request.session)
+            context = { "portal": portal,
                         "theme": self._theme,
                         "locales": self._locales
                       }
@@ -615,10 +692,10 @@ class PortalView(BaseComponent):
                        locales=[], **kwargs):
                 """
                 The render portlet function made available to the template 
-                engine. It fires the :class:`RenderPortlet` event and waits
+                engine. It fires the :class:`render_portlet` event and waits
                 for the result to become available.
                 """
-                evt = RenderPortlet \
+                evt = render_portlet \
                     (mime_type, mode, window_state, locales, 
                      self._view._ugFactory, self._portlet_counter, **kwargs)
                 self._portlet_counter += 1
@@ -645,13 +722,14 @@ class PortalView(BaseComponent):
                               "resource_url": 
                               (lambda x: self._view._portal.prefix + "/" + x),
                               "render": render})
+
     
     @handler("render_portlet_success")
     def _render_portlet_success (self, e, *args, **kwargs):
         e.sync.release()
 
     # Attached as handler to portal channel in __init__
-    def _on_portal_update(self, portlet, name, *args):
+    def _on_portal_update(self, portlet, session, name, *args):
         if portlet is None:
             handle = "portal"
         else:
@@ -660,10 +738,11 @@ class PortalView(BaseComponent):
         for arg in args:
             data.append(arg)
         msg = json.dumps(data)
-        self.fire(Write(None, msg), self._event_exchange_channel)
+        self.fire(write(self.client_connection(session), msg), \
+                  self._event_exchange_channel)
                 
     # Attached as handler to portal channel in __init__
-    def _on_read_message(self, socket, data):
+    def _on_message_from_client(self, session, data):
         evt_data = json.loads(data)
         handle = evt_data[0]
         # be a bit suspicious
@@ -673,5 +752,6 @@ class PortalView(BaseComponent):
         args = evt_data[2]
         if not isinstance(args, list):
             args = [args]
-        evt = self._requested_event (evt_data[1], args, evt_data[3], handle)
+        evt = self._create_event_from_request \
+            (session, evt_data[1], args, evt_data[3], handle)
         self.fire(evt)

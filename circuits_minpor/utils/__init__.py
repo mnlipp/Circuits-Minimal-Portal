@@ -18,27 +18,4 @@
 
 .. moduleauthor:: mnl
 """
-from circuits_minpor.portlet import TemplatePortlet, Portlet
-from circuits.core.events import Event
-from circuits.core.handlers import handler
-
-class toggle_world(Event):
-    pass
-
-class HelloWorldPortlet(TemplatePortlet):
-
-    def __init__(self, *args, **kwargs):
-        super(HelloWorldPortlet, self) \
-            .__init__("templates", "helloworld", *args, **kwargs)
-        self._show_world = True
-
-    def description(self, locales=[]):
-        return Portlet.Description\
-            (self._handle, self.translation(locales) \
-                .ugettext("Hello World Portlet"),
-             events=[(toggle_world, self.channel)])
-
-    @handler("toggle_world")
-    def _on_toggle(self, *args, **kwargs):
-        self._show_world = not self._show_world
-        
+from .misc import BaseControllerExt, serve_tenjin 

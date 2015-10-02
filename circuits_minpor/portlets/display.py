@@ -1,7 +1,7 @@
 """
 ..
    This file is part of the circuits minimal portal component.
-   Copyright (C) 2012 Michael N. Lipp
+   Copyright (C) 2012-2015 Michael N. Lipp
    
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,9 +21,9 @@
 from circuits_minpor.portlet import Portlet
 from circuits.core.events import Event
 from circuits.core.handlers import handler
-from circuits_bricks.app.config import ConfigValue
+from circuits_bricks.app.config import config_value
 
-class SetText(Event):
+class set_text(Event):
     pass
 
 class DisplayPortlet(Portlet):
@@ -37,14 +37,14 @@ class DisplayPortlet(Portlet):
              self.translation(locales).ugettext("Display Portlet"),
              markup_types=dict({ "text/html": Portlet.MarkupType\
                 (modes=[Portlet.RenderMode.View, Portlet.RenderMode.Edit])}),
-             events=[(SetText, self.channel)])
+             events=[(set_text, self.channel)])
 
     def do_render(self, markup, mode, window_state, locales, 
                    url_generator, invocation_id, **kwargs):
         if mode == Portlet.RenderMode.Edit:
             return "<form action=\"%s\" method=\"post\">" \
                 % url_generator.event_url \
-                ("circuits_minpor.portlets.display.SetText", 
+                ("circuits_minpor.portlets.display.set_text", 
                  channel=self.channel, \
                  portlet_window_state=Portlet.WindowState.Normal) \
                 + "Short text<br/>" \
@@ -65,9 +65,9 @@ class DisplayPortlet(Portlet):
             return "<div>" + self._short_text + "</div>"
 
     @handler("set_text")
-    def _on_set_text(self, short_text, long_text):
-        self.fire(ConfigValue(self.channel, "short_text", short_text))
-        self.fire(ConfigValue(self.channel, "long_text", long_text))
+    def _on_set_text(self, session, short_text, long_text):
+        self.fire(config_value(self.channel, "short_text", short_text))
+        self.fire(config_value(self.channel, "long_text", long_text))
 
     @handler("config_value", channel="*")
     def _on_config_value(self, section, option, value):

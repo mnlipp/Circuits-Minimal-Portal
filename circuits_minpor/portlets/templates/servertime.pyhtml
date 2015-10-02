@@ -23,7 +23,7 @@ document.getElementById("{== _pl("help_button") ==}").onclick = function () {
 
 document.getElementById("{== _pl("onoff") ==}").onclick = function () {
     CirMinPor.sendEvent("{== portlet.description().handle ==}", 
-                        "circuits_minpor.portlets.servertime.OnOffChanged",
+                        "circuits_minpor.portlets.servertime.on_off_changed",
                         [this.checked]);
 }
 

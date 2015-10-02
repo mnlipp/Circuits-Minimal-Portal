@@ -1,7 +1,7 @@
 """
 ..
    This file is part of the circuits bricks component library.
-   Copyright (C) 2012 Michael N. Lipp
+   Copyright (C) 2012-2015 Michael N. Lipp
    
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -43,7 +43,8 @@ CONFIG = {
 }
 
 class ErrorHandler(Component):
-    def exception(self, error_type, value, traceback, handler=None):
+    def exception(self, error_type, value, traceback, \
+                  handler=None, fevent=None):
         sys.exit();
 
 if __name__ == '__main__':
@@ -53,7 +54,8 @@ if __name__ == '__main__':
     ErrorHandler().register(application)
     # Build a web (HTTP) server for handling user interface requests.
     port = int(application.config.get("ui", "port", 0))
-    portal_server = BaseServer(("", port), channel="ui").register(application)
+    portal_server = BaseServer(("0.0.0.0", port), channel="ui") \
+        .register(application)
     Portal(portal_server, title="Test Portal").register(application)
     HelloWorldPortlet().register(application)
     DisplayPortlet(channel="sample-display").register(application)

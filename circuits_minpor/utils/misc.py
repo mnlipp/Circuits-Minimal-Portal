@@ -1,7 +1,7 @@
 """
 ..
    This file is part of the circuits minimal portal component.
-   Copyright (C) 2012 Michael N. Lipp
+   Copyright (C) 2012-2015 Michael N. Lipp
    
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 .. moduleauthor:: mnl
 """
 from circuits.web.controllers import BaseController
-from circuits.web.errors import HTTPError
+from circuits.web.errors import httperror
 
 import os
 import sys, traceback
@@ -46,13 +46,9 @@ def serve_tenjin(engine, request, response, path, context,
 
     if type is None:
         # Set content-type based on filename extension
-        ext = ""
-        i = path.rfind('.')
-        if i != -1:
-            ext = path[i:].lower()
-        if ext == ".pyhtml":
-            ext = ".html"
-        type = mimetypes.types_map.get(ext, "text/plain")
+        type, _ = mimetypes.guess_type(path, False)
+        if type is None:
+            type = "text/plain"
     response.headers['Content-Type'] = type
 
     if disposition is not None:
@@ -73,5 +69,5 @@ def serve_tenjin(engine, request, response, path, context,
     except Exception as error:
         etype, evalue, etraceback = sys.exc_info()
         error = (etype, evalue, traceback.format_tb(etraceback))
-        return HTTPError(request, response, 500, error=error)        
+        return httperror(request, response, 500, error=error)        
     return response
