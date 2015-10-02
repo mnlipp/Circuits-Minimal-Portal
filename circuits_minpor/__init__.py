@@ -19,7 +19,7 @@
 .. moduleauthor:: mnl
 """
 
-from .portal import Portal
+from circuits_minpor.portal.portal import Portal
 from .portlet import Portlet, TemplatePortlet
 
 __all__ = ["Portal", "Portlet", "TemplatePortlet"]
