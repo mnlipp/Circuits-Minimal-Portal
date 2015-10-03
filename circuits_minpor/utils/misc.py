@@ -34,7 +34,7 @@ class BaseControllerExt(BaseController):
         self.engine = tenjin.Engine()
 
     def serve_tenjin(self, request, response, path, context, 
-                     type=None, disposition=None, name=None,
+                     type="text/html", disposition=None, name=None,
                      engine=None, globexts=None):
         return serve_tenjin(engine or self.engine, request, response, path, 
                             context, type, disposition, name, globexts)
