@@ -1,6 +1,6 @@
 <?py from circuits_minpor import Portlet ?>
-<?py #@ARGS portlet, locales ?>
-<?py desc = portlet.description(locales=locales) ?>
+<?py #@ARGS portlet ?>
+<?py desc = portlet.description(locales=preferred_locales) ?>
 <div class="widget">
   <div class="widgetTitle">
     <span class="widgetLabel">
@@ -13,6 +13,6 @@
     </span>
   </div>
   <div class="widgetBody portlet-font">
-    {== render(portlet, mode=Portlet.RenderMode.Edit, locales=locales) ==}
+    {== render(portlet, mode=Portlet.RenderMode.Edit, locales=preferred_locales) ==}
   </div>
 </div>

@@ -19,6 +19,7 @@
 .. moduleauthor:: mnl
 """
 from circuits_minpor.portal.events import portal_update, portal_message
+from circuits_bricks.web.misc import ThemeSelection
 
 class PortalSessionFacade(object):
     """
@@ -34,6 +35,8 @@ class PortalSessionFacade(object):
         self._session = session
         self._portal_view = portal_view
         self._portal = portal_view.portal
+        self._theme = ThemeSelection.selected(session)
+        self._tabs = portal_view.tab_manager(session).tabs
 
     @property
     def title(self):
@@ -48,8 +51,12 @@ class PortalSessionFacade(object):
         return self._portal.supported_locales
 
     @property
+    def theme(self):
+        return self._theme
+
+    @property
     def tabs(self):
-        return self._portal_view.tab_manager(self._session).tabs
+        return self._tabs
 
     @property
     def portlets(self):
@@ -64,6 +71,6 @@ class PortalSessionFacade(object):
                      self._portal.channel)
 
     def message(self, portlet, *args, **kwargs):
-        portlet.fire(portal_message(self, self._session, *args, \
+        portlet.fire(portal_message(self._session, *args, \
                                  **kwargs), self._portal.channel)
         

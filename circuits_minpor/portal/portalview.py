@@ -108,6 +108,7 @@ class PortalView(BaseComponent):
         def _on_portal_message(self, session, message, clazz=""):
             self._on_portal_update \
                 (None, session, "portal_message", message, clazz)
+        self.addHandler(_on_portal_message)
 
     def facade(self, session):
         facade = session.get(self.__class__.__name__ + ".facade")
@@ -157,7 +158,7 @@ class PortalView(BaseComponent):
         return request.path == self._portal_path \
             or request.path.startswith(self._portal_prefix + "/")
     
-    @handler("request", filter=True, priority=0.1)
+    @handler("request", priority=0.1)
     def _on_request(self, event, request, response, peer_cert=None):
         """
         First request handler. This handler handles resource requests
@@ -182,6 +183,7 @@ class PortalView(BaseComponent):
             res = os.path.join(os.path.join\
                 (os.path.dirname(__file__), "..", request.path))
             if os.path.exists(res):
+                event.stop()
                 return tools.serve_file(request, response, res)
             return
         # Is this a portal resource request?
@@ -192,6 +194,7 @@ class PortalView(BaseComponent):
                     (directory, "themes", 
                      ThemeSelection.selected(session), request.path)
                 if os.path.exists(res):
+                    event.stop()
                     return tools.serve_file(request, response, res)
             return
         # Is this a portlet resource request?
@@ -201,11 +204,11 @@ class PortalView(BaseComponent):
                 request.path = "/".join(segs[1:])
                 event.kwargs.update\
                     ({ "theme": ThemeSelection.selected(session),
-                       "locales": LanguagePreferences.preferred(request)})
+                       "locales": LanguagePreferences.preferred(session)})
                 return self.fire (portlet_resource(*event.args, 
                                                    **event.kwargs), segs[0])
 
-    @handler("request", filter=True, priority=0.09)
+    @handler("request", priority=0.09)
     def _on_portal_request(self, event, request, response, peer_cert=None):
         """
         Second request handler. This handler processes portlet actions
@@ -274,6 +277,7 @@ class PortalView(BaseComponent):
         RenderThread(self, event, request, response).start()
         while not event.portal_response:
             yield None
+        event.stop()
         yield event.portal_response
 
     def _perform_portal_actions(self, request, path_segs, kwargs):
@@ -344,10 +348,6 @@ class PortalView(BaseComponent):
         return chans == None or channel in chans
                 
     
-    @handler("render_portlet_success")
-    def _render_portlet_success (self, e, *args, **kwargs):
-        e.sync.release()
-
     # Attached as handler to portal channel in __init__
     def _on_portal_update(self, portlet, session, name, *args):
         if portlet is None:
@@ -375,6 +375,16 @@ class PortalView(BaseComponent):
         evt = self._create_event_from_request \
             (session, evt_data[1], args, evt_data[3], handle)
         self.fire(evt)
+
+    @handler("render_portlet_success")
+    def _render_portlet_success (self, e, *args, **kwargs):
+        """
+        Causes the RenderThread to continue executing after
+        a render_portlet event has been completed. This handler
+        cannot be defined in RenderThread as it is not a component.
+        """
+        e.sync.release()
+
 
 class TabManager(object):
 
@@ -465,6 +475,7 @@ class TabManager(object):
     @property
     def configuring(self):
         return self._configuring
+
     
 class UGFactory(Portlet.UrlGeneratorFactory):
     
@@ -527,8 +538,7 @@ class RenderThread(Thread):
         self._req_evt = req_evt
         self._request = request
         self._response = response
-        self._theme = ThemeSelection.selected(request.session)
-        self._locales = LanguagePreferences.preferred(request)
+        self._locales = LanguagePreferences.preferred(request.session)
         self._translation = rbtranslations.translation\
             ("l10n", view._portal._templates_path, 
              self._locales, "en")
@@ -538,11 +548,6 @@ class RenderThread(Thread):
         self._portlet_counter = 0
 
     def run(self):
-        portal = PortalSessionFacade(self._view, self._request.session)
-        context = { "portal": portal,
-                    "theme": self._theme,
-                    "locales": self._locales
-                  }
         
         def render(portlet, mime_type="text/html", 
                    mode=Portlet.RenderMode.View, 
@@ -571,10 +576,13 @@ class RenderThread(Thread):
             return (self._view._portal_prefix
                     + "/" + portlet_handle + "/" + mode + "/" + window)
                     
+        portal = PortalSessionFacade(self._view, self._request.session)
         self._req_evt.portal_response = serve_tenjin \
             (self._view._engine, self._request, self._response,
-             "portal.pyhtml", context, type="text/html", 
-             globexts = { "_": self._translation.ugettext,
+             "portal.pyhtml", {}, type="text/html", 
+             globexts = { "portal": portal,
+                          "preferred_locales": self._locales,
+                          "_": self._translation.ugettext,
                           "portal_action_url": portal_action_url,
                           "portlet_state_url": portlet_state_url,
                           "resource_url": 

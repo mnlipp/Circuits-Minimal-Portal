@@ -1,5 +1,5 @@
+<?py #@ARGS tab ?>
 <?py from circuits_minpor import Portlet ?>
-<?py #@ARGS tab, locales ?>
   <div class="widgetBody portlet-font">
-    {== render(tab.portlet, window_state=Portlet.WindowState.Solo, locales=locales) ==}
+    {== render(tab.portlet, window_state=Portlet.WindowState.Solo, locales=preferred_locales) ==}
   </div>

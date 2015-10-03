@@ -1,4 +1,5 @@
-<?py #@ARGS portlets, locales ?>
+<?py #@ARGS portlets ?>
+<?py ppp=portal ?>
 <div style="float:left;width:33%;">
   <?py for portlet in portlets[0::3]: ?>
     <?py include('_portlet.pyhtml', portlet_idx=(), portlet=portlet) ?>

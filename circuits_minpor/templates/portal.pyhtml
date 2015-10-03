@@ -1,5 +1,4 @@
 <?py from circuits_minpor import Portlet ?>
-<?py #@ARGS portal, theme, locales ?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
@@ -14,7 +13,7 @@
     WebSocketsUnavailable: "{== _("WebSocketsUnavailable") ==}"
   };
   CirMinPor._locales = [
-  <?py for locale in locales: ?>
+  <?py for locale in preferred_locales: ?>
     "{== locale ==}",
   <?py #endfor ?>
   ];
@@ -40,8 +39,7 @@
   <div id="overlay"></div>
   <div id="overlayBody">
     <div id="overlayPage">
-    <?py include("_portlet_edited.pyhtml", 
-                 portlet=portal.configuring, locales=locales) ?>    
+    <?py include("_portlet_edited.pyhtml", portlet=portal.configuring) ?>    
     </div>
   </div>
 <?py #endif ?>
@@ -59,7 +57,7 @@
 
   <div class="languageSelector">
     <?py selected = None ?>
-    <?py for l1 in locales: ?>
+    <?py for l1 in preferred_locales: ?>
     <?py   for l2 in portal.supported_locales: ?>
     <?py     if l1 == l2[0]: ?>
     <?py       selected = l1 ?>
@@ -90,7 +88,7 @@
   <?py   if tab.selected: ?>
   <?py     selected=tab ?>
   <?py   #endif ?>
-  <?py   portlet_desc = tab.portlet.description(locales) ?>
+  <?py   portlet_desc = tab.portlet.description(preferred_locales) ?>
 <span class="{= "tab" + (" activeTab" if tab.selected else "") 
              + (" closableTab" if tab.closeable else "") =}"><a class="tabLabel" href="{== portal_action_url("select", tab=id(tab)) ==}">{= portlet_desc.short_title =}</a>
 <?py if tab.selected and Portlet.RenderMode.Edit in portlet_desc.markup_types["text/html"].render_modes: ?>         
@@ -99,8 +97,8 @@
   <?py #endfor ?>
   </div>
   <div class="page">
-    <?py include(selected.content_renderer + ".pyhtml", tab=selected, 
-                 portlets=portal.portlets, locales=locales) ?>    
+    <?py include(selected.content_renderer + ".pyhtml",
+    	tab=selected, portlets=portal.portlets, locales=preferred_locales) ?>    
   </div>
   
 <script type="text/javascript">

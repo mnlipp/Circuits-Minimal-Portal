@@ -23,6 +23,7 @@ from circuits_bricks.core.timers import Timer
 from circuits.core.events import Event
 from circuits.core.handlers import handler
 import datetime
+from circuits_minpor.portal.events import portal_message
 
 class on_off_changed(Event):
     pass

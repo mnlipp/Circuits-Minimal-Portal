@@ -1,4 +1,4 @@
-<?py #@ARGS portlet, mode, window_state, theme, locales ?>
+<?py #@ARGS portlet, mode, window_state ?>
 <?py from circuits_minpor import Portlet ?>
 <?py if window_state == Portlet.WindowState.Solo: ?>
     <div style="font-size: 400%">{= _("Hello World!") =}
