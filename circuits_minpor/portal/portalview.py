@@ -246,7 +246,8 @@ class PortalView(BaseComponent):
         if path_segs[0] != '':
             if path_segs[0] == "portal":
                 # Perform requested portal actions
-                self._perform_portal_actions(request, path_segs, event.kwargs)
+                self._perform_portal_actions \
+                    (request, response, path_segs, event.kwargs)
             else:
                 portlet = self._portal.portlet_by_handle(path_segs[0])
                 if portlet != None:
@@ -287,14 +288,14 @@ class PortalView(BaseComponent):
         event.stop()
         yield event.portal_response
 
-    def _perform_portal_actions(self, request, path_segs, kwargs):
+    def _perform_portal_actions(self, request, response, path_segs, kwargs):
         """
         Perform any requested changes of the portal state.
         """
         action = path_segs[1]
         if action == "language":
-            LanguagePreferences\
-                .override_accept(request.session, [kwargs["language"]])
+            LanguagePreferences.override_accept \
+                (request.session, [kwargs["language"]], response)
         elif action == "select":
             self.tab_manager(request.session).select_tab(int(kwargs.get("tab")))
         elif action == "close":
