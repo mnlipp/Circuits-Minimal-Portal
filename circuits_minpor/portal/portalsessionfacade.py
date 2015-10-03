@@ -23,12 +23,16 @@ from circuits_bricks.web.misc import ThemeSelection
 
 class PortalSessionFacade(object):
     """
-    This class provides access to the portal (and portal view)
-    for portlets. It's main purpose is to add the session information
-    to calls that are eventually processed by the portlet (view).
+    This class is a lightweight, session specific interface to the
+    portal view. It is passed to portlets as an attribute of render_request
+    events. It simplifies the invocation of the PortalView's methods
+    because the session information doesn't have to be obtained and
+    passed as a parameter. Rather, the facade adds the session object to the
+    invocations and forwards them to the PortalView.
     
-    An instance is passed to all portlet event handlers that
-    are session related. 
+    As a convenience, the facade also provides some methods that are 
+    forwarded to the portal (instead of the portal view), i.e. that
+    don't really require the session information. 
     """
         
     def __init__(self, portal_view, session):
@@ -38,6 +42,14 @@ class PortalSessionFacade(object):
         self._theme = ThemeSelection.selected(session)
         self._tabs = portal_view.tab_manager(session).tabs
 
+    @property
+    def portal_view(self):
+        return self._portal_view
+    
+    @property
+    def session(self):
+        return self._session
+    
     @property
     def title(self):
         return self._portal.title
@@ -62,10 +74,6 @@ class PortalSessionFacade(object):
     def portlets(self):
         return self._portal.portlets
 
-    @property
-    def session(self):
-        return self._session
-    
     def update(self, portlet, *args, **kwargs):
         portlet.fire(portal_update(portlet, self._session, *args, **kwargs), \
                      self._portal.channel)

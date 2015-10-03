@@ -43,10 +43,17 @@ from circuits_minpor.portal.portalsessionfacade import PortalSessionFacade
 
 class PortalView(BaseComponent):
     """
-    The :class:`PortalView` handles all requests directed at the portal.
-    These may be render requests for the portal itself, requests
-    for a portal resource, action requests directed at a portlet and 
-    resource requests directed at a portet.
+    The :class:`PortalView` handles all requests directed at the portal
+    from a client (browser). These may be render requests for the portal 
+    itself, requests for a portal resource, action requests directed at 
+    a portlet and resource requests directed at a portet.
+    
+    From a conceptual point of view, there is one PortalView per session.
+    This would, however, consume a lot of resources as we'd also need
+    copies of all the child components. So instead, all events handled
+    by the PortalView have a direct or indirect association with the session.
+    All operations (unless directed at the portal as a whole, i.e. affecting
+    all sessions) operate on the data stored in this session object.
     """
     
     _waiting_for_event_complete = False    
@@ -68,8 +75,8 @@ class PortalView(BaseComponent):
                  name=self.channel + ".session").register(self)
         self._event_exchange_channel = self._portal.channel + "-eventExchange"
         WebSocketsDispatcherPlus(self._portal_prefix + "/eventExchange", 
-                channel=self.channel,
-                wschannel=self._event_exchange_channel).register(self)
+                channel=self.channel, wschannel=self._event_exchange_channel) \
+                .register(self)
                 
         # Handle web socket connects from client
         @handler("connect", channel=self._event_exchange_channel)
@@ -97,7 +104,7 @@ class PortalView(BaseComponent):
             self._on_message_from_client(kwargs.get("session"), data)
         self.addHandler(_on_ws_read)
 
-        # Handle a portal update event for the portal                
+        # Handle a portal update event for the portal
         @handler("portal_update", channel=self._portal.channel)
         def _on_portal_update_handler(self, portlet, session, name, *args):
             self._on_portal_update(portlet, session, name, *args)
