@@ -163,10 +163,11 @@ class PortalView(BaseComponent):
 
     def _is_portal_request(self, request):
         return request.path == self._portal_path \
-            or request.path.startswith(self._portal_prefix + "/")
+            or (request.path.startswith(self._portal_prefix + "/") \
+                and request.path != self._portal_prefix + "/eventExchange")
     
-    @handler("request", priority=0.1)
-    def _on_request(self, event, request, response, peer_cert=None):
+    @handler("request", priority=0.8)
+    def _on_request_1(self, event, request, response, peer_cert=None):
         """
         First request handler. This handler handles resource requests
         directed at the portal or a portlet.
@@ -215,14 +216,14 @@ class PortalView(BaseComponent):
                 return self.fire (portlet_resource(*event.args, 
                                                    **event.kwargs), segs[0])
 
-    @handler("request", priority=0.09)
-    def _on_portal_request(self, event, request, response, peer_cert=None):
+    @handler("request", priority=0.79)
+    def _on_request_2(self, event, request, response, peer_cert=None):
         """
         Second request handler. This handler processes portlet actions
         and portal render requests. Portal rendering has to be done in
         a separate handler, because it uses circuits' "suspend" feature
         (handler returns a generator, which may not be mixed with
-        regular returns). This allows us to render the portlets
+        regular returns in Python). This allows us to render the portlets
         using render events that are processed before this handler returns
         its result. Using :class:`RenderRequest` events instead of invoking
         the render method directly allows other components to intercept
@@ -277,6 +278,8 @@ class PortalView(BaseComponent):
                         yield None
                     self.removeHandler(complete_handler)
     
+        # We'll handle this request
+        event.stop()
         # Render portal
         event.portal_response = None
         # See _render_portal_template for an explanation
@@ -285,8 +288,17 @@ class PortalView(BaseComponent):
         RenderThread(self, event, request, response).start()
         while not event.portal_response:
             yield None
-        event.stop()
         yield event.portal_response
+
+    @handler("request", priority=0.78)
+    def _on_request_3(self, event, request, response, peer_cert=None):
+        """
+        Third request handler. Required because of GitHub bug #136.
+        Will be removed when the bug is fixed.
+        """
+        if not self._is_portal_request(request):
+            return
+        event.stop()
 
     def _perform_portal_actions(self, request, response, path_segs, kwargs):
         """
