@@ -1,6 +1,6 @@
 <?py from circuits_minpor import Portlet ?>
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html>
 <head>
   <title>{= _(portal.title) =}</title>
   <meta name="description" content="This is ...">
