@@ -8,11 +8,9 @@ from setuptools import setup
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
-import circuits_minpor
-
 setup(
     name = "circuits-minpor",
-    version = circuits_minpor.__version__,
+    version = "0.4.1", # also defined in circuits_minpor.__version__,
     author = "Michael N. Lipp",
     author_email = "mnl@mnl.de",
     description = ("A minimal portal based on the circuits component library."),

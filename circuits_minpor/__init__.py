@@ -19,9 +19,9 @@
 .. moduleauthor:: mnl
 """
 
-from circuits_minpor.portal.portal import Portal
+from .portal.portal import Portal
 from .portlet import Portlet, TemplatePortlet
 
 __all__ = ["Portal", "Portlet", "TemplatePortlet"]
 
-__version__ = "0.4"
+__version__ = "0.4.1"
