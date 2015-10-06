@@ -570,6 +570,7 @@ class RenderThread(Thread):
         if self._translation.language:
             response.headers["Content-Language"] \
                 = self._translation.language.replace("_", "-")
+        self._portal = PortalSessionFacade(self._view, self._request.session)
         self._portlet_counter = 0
 
     def run(self):
@@ -585,7 +586,8 @@ class RenderThread(Thread):
             """
             evt = render_portlet \
                 (mime_type, mode, window_state, locales, 
-                 self._view._ugFactory, self._portlet_counter, **kwargs)
+                 self._view._ugFactory, self._portlet_counter,
+                 self._portal, **kwargs)
             self._portlet_counter += 1
             evt.success_channels = [self._view.channel]
             evt.sync = Semaphore(0)
@@ -601,11 +603,10 @@ class RenderThread(Thread):
             return (self._view.prefix
                     + "/" + portlet_handle + "/" + mode + "/" + window)
                     
-        portal = PortalSessionFacade(self._view, self._request.session)
         self._req_evt.portal_response = serve_tenjin \
             (self._view._engine, self._request, self._response,
              "portal.pyhtml", {}, type="text/html", 
-             globexts = { "portal": portal,
+             globexts = { "portal": self._portal,
                           "preferred_locales": self._locales,
                           "_": self._translation.ugettext,
                           "portal_action_url": portal_action_url,

@@ -38,7 +38,8 @@ class render_portlet(Event):
     success = True
     
     def __init__(self, mime_type, mode, window_state, locales, 
-                 url_generator_factory, invocation_id, **kwargs):
+                 url_generator_factory, invocation_id,
+                 portal, **kwargs):
         """
         Renders a portlet.
         
@@ -60,10 +61,14 @@ class render_portlet(Event):
         :param invocation_id: a value that is different for each event
             fired during the rendering of a portal page
         :type invocation_id: int
+        
+        :param portal: the portal facade
+        :type portal: :class:`PortalSessionFacade`
         """
         super(render_portlet, self).__init__\
             (mime_type, mode, window_state, locales, 
-             url_generator_factory, invocation_id, **kwargs)
+             url_generator_factory, invocation_id,
+             portal, **kwargs)
 
 
 class Portlet(BaseComponent):
@@ -315,13 +320,14 @@ class Portlet(BaseComponent):
                         mode=RenderMode.View, 
                         window_state=WindowState.Normal, 
                         locales=[], url_generator_factory=None, 
-                        invocation_id=0, **kwargs):
+                        invocation_id=0, portal=None, **kwargs):
         url_generator = url_generator_factory.make_generator(self)
         return self.do_render(mime_type, mode, window_state, 
-                              locales, url_generator, invocation_id, **kwargs)
+                              locales, url_generator, invocation_id,
+                              portal, **kwargs)
 
     def do_render(self, mime_type, mode, window_state, locales, 
-                   url_generator, invocation_id, **kwargs):
+                   url_generator, invocation_id, portal, **kwargs):
         """
         Return the markup for the portlet using the language 
         matching the specified *mime_type* and 
@@ -342,6 +348,8 @@ class Portlet(BaseComponent):
         :param invocation_id: a value that is different for each event
             fired during the rendering of a portal page
         :type invocation_id: int
+        :param portal: the portal facade
+        :type portal: :class:`PortalSessionFacade`
         """
         return "<div class=\"portlet-msg-error\">" \
                 + "Portlet not implemented yet</div>"
@@ -380,7 +388,8 @@ class TemplatePortlet(Portlet):
              key_language=self._key_language)
 
     def do_render(self, mime_type, mode, window_state, locales, url_generator, 
-                  invocation_id, context_exts = {}, globs_exts = {}, **kwargs):
+                  invocation_id, portal, 
+                  context_exts = {}, globs_exts = {}, **kwargs):
         theme = kwargs.get("theme", "default")
         theme_path = os.path.join(self._template_dir, "themes", theme)
         if not os.path.exists(theme_path):
@@ -395,6 +404,7 @@ class TemplatePortlet(Portlet):
         # Prepare globals
         globs = tenjin.helpers.__dict__
         globs.update({ "_": translation.ugettext,
+                       "portal": portal,
                        "event_url": url_generator.event_url,
                        "resource_url": url_generator.resource_url,
                        "_pl": (lambda name: "_" + str(invocation_id) \
