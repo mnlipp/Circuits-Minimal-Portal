@@ -40,6 +40,7 @@ from circuits_minpor.utils.misc import serve_tenjin
 import json
 from circuits.io.events import write
 from circuits_minpor.portal.portalsessionfacade import PortalSessionFacade
+from os.path import dirname, join
 
 class PortalView(BaseComponent):
     """
@@ -64,17 +65,17 @@ class PortalView(BaseComponent):
         super(PortalView, self).__init__(*args, **kwargs)
         self.host = kwargs.get("host", None)
         self._portal = portal
-        self._engine = tenjin.Engine(path=portal._templates_path)
-        self._portal_resource = portal.prefix + "/portal-resource/"
-        self._theme_resource = portal.prefix + "/theme-resource/"
-        self._portlet_resource = portal.prefix + "/portlet-resource/"
-        self._portal_prefix = portal.prefix
-        self._portal_path = "/" if portal.prefix == "" else portal.prefix
-        self._ugFactory = UGFactory(portal.prefix)
+        self._engine = tenjin.Engine(path=portal._templates_dir)
+        self._portal_prefix = "" if portal.path == "/" else portal.path
+        self._portal_resource = self.prefix + "/portal-resource/"
+        self._portal_resource_dir = join(dirname(dirname(__file__)), "static")
+        self._theme_resource = self.prefix + "/theme-resource/"
+        self._portlet_resource = self.prefix + "/portlet-resource/"
+        self._ugFactory = UGFactory(self.prefix)
         Sessions(channel = self.channel, 
                  name=self.channel + ".session").register(self)
         self._event_exchange_channel = self._portal.channel + "-eventExchange"
-        WebSocketsDispatcherPlus(self._portal_prefix + "/eventExchange", 
+        WebSocketsDispatcherPlus(self.prefix + "/eventExchange", 
                 channel=self.channel, wschannel=self._event_exchange_channel) \
                 .register(self)
                 
@@ -116,6 +117,10 @@ class PortalView(BaseComponent):
             self._on_portal_update \
                 (None, session, "portal_message", message, clazz)
         self.addHandler(_on_portal_message)
+
+    @property
+    def prefix(self):
+        return self._portal_prefix
 
     def facade(self, session):
         facade = session.get(self.__class__.__name__ + ".facade")
@@ -162,9 +167,9 @@ class PortalView(BaseComponent):
         return session.get(self.__class__.__name__ + ".client_connection")
 
     def _is_portal_request(self, request):
-        return request.path == self._portal_path \
-            or (request.path.startswith(self._portal_prefix + "/") \
-                and request.path != self._portal_prefix + "/eventExchange")
+        return request.path == self.prefix \
+            or (request.path.startswith(self.prefix + "/") \
+                and request.path != self.prefix + "/eventExchange")
     
     @handler("request", priority=0.8)
     def _on_request_1(self, event, request, response, peer_cert=None):
@@ -179,28 +184,28 @@ class PortalView(BaseComponent):
             event.peer_cert = peer_cert
             
         # Add path to session cookie, else duplicates may occur
-        response.cookie[self.channel+".session"]["path"] = self._portal_path
+        response.cookie[self.channel+".session"]["path"] = self._portal.path
         
         # Decode query parameters and body
         event.kwargs = parse_qs(request.qs)
         parse_body(request, response, event.kwargs)
         session = request.session
-        # Is this a portal request?
+        # Is this a portal portal request?
         if request.path.startswith(self._portal_resource):
-            request.path = request.path[len(self._portal_resource):]
             res = os.path.join(os.path.join\
-                (os.path.dirname(__file__), "..", request.path))
+                (self._portal_resource_dir, 
+                 request.path[len(self._portal_resource):]))
             if os.path.exists(res):
                 event.stop()
                 return tools.serve_file(request, response, res)
             return
-        # Is this a portal resource request?
+        # Is this a portal theme resource request?
         if request.path.startswith(self._theme_resource):
-            request.path = request.path[len(self._theme_resource):]
-            for directory in self._portal._templates_path:
+            for directory in self._portal._templates_dir:
                 res = os.path.join \
                     (directory, "themes", 
-                     ThemeSelection.selected(session), request.path)
+                     ThemeSelection.selected(session), 
+                     request.path[len(self._theme_resource):])
                 if os.path.exists(res):
                     event.stop()
                     return tools.serve_file(request, response, res)
@@ -242,7 +247,7 @@ class PortalView(BaseComponent):
         session = request.session
         
         path_segs = urllib.unquote \
-            (request.path[len(self._portal_prefix)+1:]).split("/")
+            (request.path[len(self.prefix)+1:]).split("/")
         portlet = None
         if path_segs[0] != '':
             if path_segs[0] == "portal":
@@ -560,7 +565,7 @@ class RenderThread(Thread):
         self._response = response
         self._locales = LanguagePreferences.preferred(request.session)
         self._translation = rbtranslations.translation\
-            ("l10n", view._portal._templates_path, 
+            ("l10n", view._portal._templates_dir, 
              self._locales, "en")
         if self._translation.language:
             response.headers["Content-Language"] \
@@ -589,11 +594,11 @@ class RenderThread(Thread):
             return evt.value.value 
         # Render the template.
         def portal_action_url(action, **kwargs):
-            return (self._view._portal_prefix
+            return (self._view.prefix
                     + "/portal/" + urllib.quote(action)
                     + (("?" + urllib.urlencode(kwargs)) if kwargs else ""))
         def portlet_state_url(portlet_handle, mode="_", window="_"):
-            return (self._view._portal_prefix
+            return (self._view.prefix
                     + "/" + portlet_handle + "/" + mode + "/" + window)
                     
         portal = PortalSessionFacade(self._view, self._request.session)
@@ -606,6 +611,6 @@ class RenderThread(Thread):
                           "portal_action_url": portal_action_url,
                           "portlet_state_url": portlet_state_url,
                           "resource_url": 
-                          (lambda x: self._view._portal.prefix + "/" + x),
+                          (lambda x: self._view.prefix + "/" + x),
                           "render": render})
 

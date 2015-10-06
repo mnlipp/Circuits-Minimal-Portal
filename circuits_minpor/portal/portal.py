@@ -28,6 +28,7 @@ from circuits_bricks.web.misc import LanguagePreferences, ThemeSelection
 import rbtranslations
 from circuits_minpor.portal.portalview import PortalView
 from circuits_minpor.portal.events import portlet_added, portlet_removed
+from os.path import dirname
 
 
 class Portal(BaseComponent):
@@ -47,10 +48,10 @@ class Portal(BaseComponent):
 
     channel = "minpor"
     
-    _prefix = None
+    _path = None
     _title = None
 
-    def __init__(self, server=None, prefix=None, 
+    def __init__(self, server=None, path="/", 
                  title=None, templates_dir=None, **kwargs):
         """
         :param server: the component that handles the basic connection
@@ -60,14 +61,14 @@ class Portal(BaseComponent):
                        that listens on port 4444.
         :type server: :class:`circuits.web.server.BaseServer`
         
-        :param prefix: a prefix for URLs used by the portal. This allows
-                       the portal to co-exist with other content on the same
-                       web server. If specified, only requests with the
-                       given prefix are handled by the portal dispatcher and 
-                       the prefix is prepended to all generated URLs.
-                       The value must start with a slash and must not 
-                       end with a slash.
-        :type prefix: string
+        :param path: a path for URLs used by the portal. This allows
+                     the portal to co-exist with other content on the same
+                     web server. If specified, only requests starting with the
+                     given path are handled by the portal dispatcher and 
+                     the path is prepended to all generated URLs.
+                     The value must start with a slash and must not 
+                     end with a slash.
+        :type path: string
         
         :param title: The title of the portal (displayed in the
                       browser's title bar)
@@ -81,7 +82,7 @@ class Portal(BaseComponent):
         :type templates_dir: string
         """
         super(Portal, self).__init__(**kwargs)
-        self._prefix = prefix or ""
+        self._path = path or ""
         self._title = title
         self._portlets = []
         if server is None:
@@ -90,20 +91,20 @@ class Portal(BaseComponent):
             self.channel = server.channel
         self.server = server
         if templates_dir:
-            self._templates_path = [os.path.abspath(templates_dir)]
+            self._templates_dir = [os.path.abspath(templates_dir)]
         else:
-            self._templates_path = []
-        self._templates_path \
-            += [os.path.join(os.path.dirname(__file__), "..", "templates")]
+            self._templates_dir = []
+        self._templates_dir \
+            += [os.path.join(dirname(dirname(__file__)), "templates")]
         LanguagePreferences(channel = server.channel).register(server)
         ThemeSelection(channel = server.channel).register(server)
         view = PortalView(self, channel = server.channel).register(server)
         self._url_generator_factory = view.url_generator_factory
         self._supported_locales = []
         for locale in rbtranslations.available_translations\
-            ("l10n", self._templates_path, "en"):
+            ("l10n", self._templates_dir, "en"):
             trans = rbtranslations.translation\
-                ("l10n", self._templates_path, [locale], "en")
+                ("l10n", self._templates_dir, [locale], "en")
             locale_name = trans.ugettext("language_" + locale)
             self._supported_locales.append((locale, locale_name))
         self._supported_locales.sort(key=lambda x: x[1])
@@ -130,8 +131,8 @@ class Portal(BaseComponent):
             self.fire(portlet_removed(self, c), c)
 
     @property
-    def prefix(self):
-        return self._prefix
+    def path(self):
+        return self._path
 
     @property
     def title(self):

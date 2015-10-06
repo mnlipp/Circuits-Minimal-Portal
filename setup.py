@@ -8,9 +8,11 @@ from setuptools import setup
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
+import circuits_minpor
+
 setup(
     name = "circuits-minpor",
-    version = "0.4.1", # also defined in circuits_minpor.__version__,
+    version = "0.4.2", # also defined in circuits_minpor.__version__,
     author = "Michael N. Lipp",
     author_email = "mnl@mnl.de",
     description = ("A minimal portal based on the circuits component library."),
@@ -24,7 +26,9 @@ setup(
         "License :: OSI Approved :: GNU General Public License (GPL)",
     ],
     packages=['circuits_minpor',
+              'circuits_minpor.portal',
               'circuits_minpor.portlets',
+              'circuits_minpor.utils',
               'tests'],
     package_data={'circuits_minpor': ['*.js',
                                       'templates/*.properties', 
