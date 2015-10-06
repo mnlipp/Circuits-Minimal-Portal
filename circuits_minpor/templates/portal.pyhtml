@@ -2,10 +2,12 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="utf-8">
   <title>{= _(portal.title) =}</title>
   <meta name="description" content="This is ...">
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="shortcut icon" href="{== resource_url("theme-resource/favicon.ico") ==}"> 
+  <link rel="stylesheet" type="text/css" href="{== resource_url("portal-resource/normalize.css") ==}">
   <link rel="stylesheet" type="text/css" href="{== resource_url("theme-resource/mipypo.css") ==}">
   <script src="{== resource_url("portal-resource/functions.js") ==}" type="text/javascript"></script>
   <script type="text/javascript">

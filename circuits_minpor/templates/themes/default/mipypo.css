@@ -1,8 +1,8 @@
 body {
   font-family: Arial,Verdana,Arial,Helvetica,sans-serif;
-  font-size: 12pt;
+  font-size: 100%;
   color: #444;
-  padding: 2pt;
+  padding: 2mm;
 }
 
 .topMessageDisplay {
