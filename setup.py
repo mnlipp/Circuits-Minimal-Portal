@@ -1,5 +1,8 @@
 import os
 from setuptools import setup
+from imp import new_module
+from os import path
+from posix import getcwd
 
 # Utility function to read the README file.
 # Used for the long_description.  It's nice, because now 1) we have a top level
@@ -8,12 +11,30 @@ from setuptools import setup
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
-# Cannot use this as it breaks setup.py
-# import circuits_minpor
+version = new_module("version")
+
+exec(
+    compile(
+        open(
+            path.join(
+                path.dirname(
+                    globals().get(
+                        "__file__",
+                        path.join(getcwd(), "circuits_minpor")
+                    )
+                ),
+                "circuits_minpor/version.py"
+            ),
+            "r"
+        ).read(),
+        "circuits_minpor/version.py", "exec"
+    ),
+    version.__dict__
+)
 
 setup(
     name = "circuits-minpor",
-    version = "0.4.3", # also defined in circuits_minpor.__version__,
+    version = version.version,
     author = "Michael N. Lipp",
     author_email = "mnl@mnl.de",
     description = ("A minimal portal based on the circuits component library."),

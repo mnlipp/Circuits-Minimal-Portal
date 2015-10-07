@@ -19,9 +19,4 @@
 .. moduleauthor:: mnl
 """
 
-from .version import version as __version__
-from .portal.portal import Portal
-from .portlet import Portlet, TemplatePortlet
-
-__all__ = ["Portal", "Portlet", "TemplatePortlet"]
-
+version = "0.4.3"
