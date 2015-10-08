@@ -19,3 +19,5 @@
 .. moduleauthor:: mnl
 """
 
+from .portalsessionfacade import PortalSessionFacade
+from .events import *

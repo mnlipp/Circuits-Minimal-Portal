@@ -23,60 +23,18 @@ from circuits.core.components import BaseComponent
 from abc import ABCMeta, abstractmethod
 import uuid
 from circuits.web.errors import notfound
-from circuits.core.events import Event
 from circuits.core.handlers import handler
 import os
 import rbtranslations
 import tenjin
 import inspect
 
-class render_portlet(Event):
-    """
-    The event sent to portlets when the portal needs their content.
-    """
-    
-    success = True
-    
-    def __init__(self, mime_type, mode, window_state, locales, 
-                 url_generator_factory, invocation_id,
-                 portal, **kwargs):
-        """
-        Renders a portlet.
-        
-        :param mime_type: the mime type to produce (e.g. "text/html")
-        :type mime_type: string
-        
-        :param mode: the render mode
-        :type mode: :class:`RenderMode`
-        
-        :param window_state: the window state
-        :type window_state: :class:`WindowState`
-        
-        :param locales: the preferred locales
-        :type locales: list of strings
-        
-        :param url_generator_factory: factory for URL generator
-        :type urlGenerator: :class:`UrlGeneratorFactory`
-        
-        :param invocation_id: a value that is different for each event
-            fired during the rendering of a portal page
-        :type invocation_id: int
-        
-        :param portal: the portal facade
-        :type portal: :class:`PortalSessionFacade`
-        """
-        super(render_portlet, self).__init__\
-            (mime_type, mode, window_state, locales, 
-             url_generator_factory, invocation_id,
-             portal, **kwargs)
-
-
 class Portlet(BaseComponent):
     """
     A portlet is a component that contributes to the portal's content.
-    Content is provided as the result of handling a
-    :class:`~.render_portlet` event. Implementations usually override the
-    :meth:`.do_render` method instead of providing the handler themselves.
+    Implementations usually override the
+    :meth:`.do_render` method instead of providing the render 
+    method themselves.
     
     The interface of the portlet component has been designed with the
     WSRP specification in mind. Therefore it may appear a bit
@@ -258,7 +216,7 @@ class Portlet(BaseComponent):
     class UrlGeneratorFactory(object):
         """
         The URL generator factory is passed to a portlet as
-        attribute of the :class:`~.render_portlet` event.
+        parameter of the :class:`~.render` method.
         """
 
         __metaclass__ = ABCMeta
@@ -315,12 +273,15 @@ class Portlet(BaseComponent):
         """
         return Portlet.Description(self._handle, "Base Portlet")
     
-    @handler("render_portlet")
-    def _render_portlet(self, mime_type="text/html", 
-                        mode=RenderMode.View, 
-                        window_state=WindowState.Normal, 
-                        locales=[], url_generator_factory=None, 
-                        invocation_id=0, portal=None, **kwargs):
+    def render(self, mime_type="text/html", 
+               mode=RenderMode.View, 
+               window_state=WindowState.Normal, 
+               locales=[], url_generator_factory=None, 
+               invocation_id=0, portal=None, **kwargs):
+        """
+        Render the portle, i.e. return its contribution to the
+        HTML content.
+        """
         url_generator = url_generator_factory.make_generator(self)
         return self.do_render(mime_type, mode, window_state, 
                               locales, url_generator, invocation_id,

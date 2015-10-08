@@ -19,7 +19,7 @@
 .. moduleauthor:: mnl
 """
 from circuits.core.components import BaseComponent
-from circuits_minpor.portlet import Portlet, render_portlet
+from circuits_minpor.portlet import Portlet
 import urllib
 import tenjin
 from circuits_bricks.web.sessions import Sessions
@@ -398,15 +398,6 @@ class PortalView(BaseComponent):
             (session, evt_data[1], args, evt_data[3], handle)
         self.fire(evt)
 
-    @handler("render_portlet_success")
-    def _render_portlet_success (self, e, *args, **kwargs):
-        """
-        Causes the RenderThread to continue executing after
-        a render_portlet event has been completed. This handler
-        cannot be defined in RenderThread as it is not a component.
-        """
-        e.sync.release()
-
 
 class TabManager(object):
 
@@ -578,19 +569,12 @@ class RenderThread(Thread):
                    locales=[], **kwargs):
             """
             The render portlet function made available to the template 
-            engine. It fires the :class:`render_portlet` event and waits
-            for the result to become available.
+            engine. It calls the portlet's render method.
             """
-            evt = render_portlet \
-                (mime_type, mode, window_state, locales, 
-                 self._view._ugFactory, self._portlet_counter,
-                 self._portal, **kwargs)
             self._portlet_counter += 1
-            evt.success_channels = [self._view.channel]
-            evt.sync = Semaphore(0)
-            self._view.fire(evt, portlet.channel)
-            evt.sync.acquire()
-            return evt.value.value 
+            return portlet.render(mime_type, mode, window_state, locales, 
+                 self._view._ugFactory, self._portlet_counter,
+                 self._portal, **kwargs);
         # Render the template.
         def portal_action_url(action, **kwargs):
             return (self._view.prefix
