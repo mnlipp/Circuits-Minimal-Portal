@@ -22,7 +22,7 @@ from circuits.core.components import BaseComponent
 from circuits_minpor.portlet import Portlet, render_portlet
 import urllib
 import tenjin
-from circuits.web.sessions import Sessions
+from circuits_bricks.web.sessions import Sessions
 from circuits_minpor.utils.dispatcher import WebSocketsDispatcherPlus
 from circuits.core.handlers import handler
 from circuits.web.utils import parse_qs, parse_body
@@ -72,8 +72,8 @@ class PortalView(BaseComponent):
         self._theme_resource = self.prefix + "/theme-resource/"
         self._portlet_resource = self.prefix + "/portlet-resource/"
         self._ugFactory = UGFactory(self.prefix)
-        Sessions(channel = self.channel, 
-                 name=self.channel + ".session").register(self)
+        Sessions(channel = self.channel, path=portal.path,
+                 name=self.channel + ".portal_session").register(self)
         self._event_exchange_channel = self._portal.channel + "-eventExchange"
         WebSocketsDispatcherPlus(self.prefix + "/eventExchange", 
                 channel=self.channel, wschannel=self._event_exchange_channel) \
@@ -183,9 +183,6 @@ class PortalView(BaseComponent):
         if peer_cert:
             event.peer_cert = peer_cert
             
-        # Add path to session cookie, else duplicates may occur
-        response.cookie[self.channel+".session"]["path"] = self._portal.path
-        
         # Decode query parameters and body
         event.kwargs = parse_qs(request.qs)
         parse_body(request, response, event.kwargs)
