@@ -12,7 +12,7 @@ wsUrl: function(path) {
     var loc = window.location;
     var url = "ws:";
     if (loc.protocol == "https:") {
-        url = "wss";
+        url = "wss:";
     }
     url += "//" + loc.host;
     if (path.indexOf("/") != 0) {
