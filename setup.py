@@ -1,5 +1,5 @@
 import os
-from setuptools import setup
+from setuptools import setup, find_packages
 from imp import new_module
 from os import path
 from posix import getcwd
@@ -47,11 +47,8 @@ setup(
         "Development Status :: 3 - Alpha",
         "License :: OSI Approved :: GNU General Public License (GPL)",
     ],
-    packages=['circuits_minpor',
-              'circuits_minpor.portal',
-              'circuits_minpor.portlets',
-              'circuits_minpor.utils'],
-    package_data={'circuits_minpor': ['*.js',
+    packages=find_packages("."),
+    package_data={'circuits_minpor': ['static/*',
                                       'templates/*.properties', 
                                       'templates/*.pyhtml',
                                       'templates/themes/default/*'],
