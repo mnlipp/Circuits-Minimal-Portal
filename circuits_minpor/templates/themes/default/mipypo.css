@@ -64,6 +64,10 @@ body {
   padding: 4pt 2pt 4pt 0pt;
 }
 
+.tab:hover {
+  margin-left: 5pt;
+}
+
 .tabLabel {
   text-decoration: none;
   color: #444;
@@ -78,37 +82,37 @@ body {
   color: #E87500;
 }
 
+/* Tab icons with hover appearing effect */
 .tabIcons {
-  display: none;
+  display: inline;
   padding-right: 4px;
 }
 
-.tab:hover .tabIcons {
+.no-touch .tabIcons {
+  display: none;
+}
+
+.no-touch .tab:hover .tabIcons {
   display: inline;
 }
 
-.tab:hover {
-  margin-left: 5pt;
-}
-
+/* Tab closer with hover effect */
 .tabCloser {
   font-size: 12px;
-  visibility: hidden;
   position: relative;
   top: -9px;
   background: url("close-tab.png") top left no-repeat
 }
 
 .tabCloser img {
-  visibility: hidden;
   vertical-align: text-top;
 }
 
-.closableTab:hover .tabCloser {
-  visibility: visible;
+.no-touch .tabCloser img {
+  visibility: hidden;
 }
 
-.tabCloser:hover img {
+.no-touch .closableTab:hover .tabCloser {
   visibility: visible;
 }
 
@@ -144,6 +148,7 @@ body {
   margin: 10pt 8pt;
 }
 
+/* Widget title with hover effect */
 .widgetTitle {
   background: #B5B0A7 url('title-bg.png');
   border-radius: 4px 4px 0 0;
@@ -156,19 +161,24 @@ body {
   padding-right: 16px;
 }
 
-.widgetTitle:hover {
+.no-touch .widgetTitle:hover {
   background: #bdb7ae url('title-bg-hover.png');
   vertical-align: middle;
 }
 
+/* Widget buttons with hover effect */
 .widgetButtons {
-  display: none;
+  display: inline;
   float: right;
   padding-top: 0.2em;
   margin-right: 0.3em;
 }
 
-div.widgetTitle:hover .widgetButtons {
+.no-touch .widgetButtons {
+	display: none;
+}
+
+.no-touch div.widgetTitle:hover .widgetButtons {
   display: inline;
 }
 
