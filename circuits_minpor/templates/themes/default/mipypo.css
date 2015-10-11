@@ -108,11 +108,11 @@ body {
   vertical-align: text-top;
 }
 
-.no-touch .tabCloser img {
+.no-touch .closableTab .tabCloser img {
   visibility: hidden;
 }
 
-.no-touch .closableTab:hover .tabCloser {
+.no-touch .closableTab:hover .tabCloser img {
   visibility: visible;
 }
 
