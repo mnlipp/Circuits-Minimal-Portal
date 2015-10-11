@@ -85,8 +85,7 @@ class PortalView(BaseComponent):
             session = kwargs.get("session")
             if session:
                 session[self.__class__.__name__ + ".client_connection"] = sock
-            self.fire(portal_client_connect(self.facade(session)), \
-                      self._portal.channel)
+            self.fire(portal_client_connect(session), self._portal.channel)
         self.addHandler(_on_ws_connect)
         
         # Handle web socket disconnects from client
@@ -95,7 +94,7 @@ class PortalView(BaseComponent):
             session = kwargs.get("session")
             if self.client_connection(session) == sock:
                 session[self.__class__.__name__ + ".client_connection"] = None
-            self.fire(portal_client_disconnect(self.facade(session), sock), \
+            self.fire(portal_client_disconnect(session, sock), \
                       self._portal.channel)
         self.addHandler(_on_ws_disconnect)
         
@@ -344,7 +343,7 @@ class PortalView(BaseComponent):
                           "Unknown event class in event URL: " + evt_class))
             return None
         try:
-            evnt = clazz(self.facade(session), *args, **kwargs)
+            evnt = clazz(*args, session=session, **kwargs)
         except Exception:
             self.fire(log(logging.ERROR, 
                           "Cannot create event: " + str(sys.exc_info()[1])))

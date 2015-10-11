@@ -40,7 +40,7 @@ class portal_client_connect(Event):
     exchange. This is event can be used by portlets with dynamic content
     to immediately fire an event to update (actually initialize) the content.
 
-    :param portal: the portal session facade
+    :param session: the session
     """
 
 class portal_client_disconnect(Event):
@@ -48,7 +48,7 @@ class portal_client_disconnect(Event):
     This event signals that a client has disconnected from the event
     exchange. 
 
-    :param portal: the portal session facade
+    :param session: the session
     :param sock: the web socket that has closed.
     """
 

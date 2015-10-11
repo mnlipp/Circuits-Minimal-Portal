@@ -23,7 +23,7 @@ from circuits_bricks.core.timers import Timer
 from circuits.core.events import Event
 from circuits.core.handlers import handler
 import datetime
-from circuits_minpor.portal.events import portal_message
+from circuits_minpor.portal.events import portal_message, portal_update
 
 class on_off_changed(Event):
     pass
@@ -45,31 +45,33 @@ class ServerTimePortlet(TemplatePortlet):
 
     @handler("portlet_added")
     def _on_portlet_added(self, portal, portlet):
-        self._portal_channel = portal.channel
+        self._portal_channel=portal.channel
         @handler("portal_client_connect", channel=portal.channel)
-        def _on_ws_connect(self, portal):
-            self._update_time(portal)
+        def _on_ws_connect(self, session):
+            self._update_time(session)
         self.addHandler(_on_ws_connect)
 
-    def _update_time(self, portal):
+    def _update_time(self, session):
         td = datetime.datetime.utcnow() - datetime.datetime(1970, 1, 1)
         td = td.microseconds / 1000 + (td.seconds + td.days * 86400) * 1000
         td = int(td)
-        portal.update(self, "new_time", str(td))
+        self.fire(portal_update(self, session, "new_time", str(td)), \
+                  self._portal_channel)
 
     @property
     def updating(self):
         return getattr(self, "_timer", None) is not None
 
     @handler("on_off_changed")
-    def _on_off_changed(self, event, portal, value, **kwargs):
+    def _on_off_changed(self, value, session=None, **kwargs):
         if value and self._timer is None:
-            evt = Event.create("time_over", portal)
+            evt = Event.create("time_over", session)
             evt.channels = (self.channel,)
             self._timer = Timer(1, evt, persist=True).register(self)
             locales = kwargs.get("locales", [])
-            portal.message \
-                (self, self.translation(locales).ugettext("TimeUpdateOn"))
+            self.fire(portal_message \
+                      (session, self.translation(locales) \
+                       .ugettext("TimeUpdateOn")), self._portal_channel)
         if not value and self._timer is not None:
             self._timer.unregister()
             self._timer = None
