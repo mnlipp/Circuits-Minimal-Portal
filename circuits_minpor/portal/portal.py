@@ -153,6 +153,3 @@ class Portal(BaseComponent):
                 return portlet
         return None
 
-    def url_generator(self, portlet):
-        return self._url_generator_factory.make_generator(portlet)
-

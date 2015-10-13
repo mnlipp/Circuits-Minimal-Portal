@@ -260,11 +260,15 @@ class PortalView(BaseComponent):
             # Perform requested portlet state changes
             self._perform_portlet_state_changes(session, portlet, path_segs)
             # Get requested events
-            if len(path_segs) >= 3 and path_segs[0] == "event":
-                evt = self._create_event_from_request \
-                    (session, path_segs[1], [], 
-                     getattr(event, "kwargs", {}), path_segs[2])
-                del path_segs[0:3]
+            if len(path_segs) >= 4 and path_segs[0] == "event":
+                evt = None
+                event_num = int(path_segs[1])
+                if event_num >= session.get("_expected_event", 0):
+                    session["_expected_event"] += 1 
+                    evt = self._create_event_from_request \
+                        (session, path_segs[2], [], 
+                         getattr(event, "kwargs", {}), path_segs[3])
+                del path_segs[0:4]
                 
                 if evt:
                     evt.complete = True
@@ -496,10 +500,11 @@ class UGFactory(Portlet.UrlGeneratorFactory):
     
     class UG(Portlet.UrlGenerator):
 
-        def __init__(self, prefix, portlet):
+        def __init__(self, prefix, portlet, session):
             self._prefix = prefix
             self._handle = portlet.description().handle
             self._channel = portlet.channel
+            self._session = session
     
         def event_url(self, event_name, channel=None, 
                       portlet_mode=None, portlet_window_state=None,
@@ -513,7 +518,9 @@ class UGFactory(Portlet.UrlGeneratorFactory):
                 if portlet_window_state == None:
                     portlet_window_state = "_"
                 url += "/" + portlet_mode + "/" + portlet_window_state
-            return (url + "/event/"+ urllib.quote(event_name)
+            return (url + "/event/" 
+                    + str(self._session.setdefault("_expected_event", 1))
+                    + "/" + urllib.quote(event_name)
                     + "/" + urllib.quote(channel)
                     + ("" if len(kwargs) == 0 
                        else "?" + urllib.urlencode(kwargs)))
@@ -524,8 +531,8 @@ class UGFactory(Portlet.UrlGeneratorFactory):
                 + (resource if resource.startswith("/") \
                             else ("/" + urllib.quote(resource)))
 
-    def make_generator(self, portlet):
-        return self.UG(self._prefix, portlet)
+    def make_generator(self, portlet, session):
+        return self.UG(self._prefix, portlet, session)
     
 
 class RenderThread(Thread):
@@ -571,9 +578,9 @@ class RenderThread(Thread):
             engine. It calls the portlet's render method.
             """
             self._portlet_counter += 1
-            return portlet.render(mime_type, mode, window_state, locales, 
-                 self._view._ugFactory, self._portlet_counter,
-                 self._portal, **kwargs);
+            return portlet.render(self._portal, mime_type, mode, window_state, \
+                 locales, self._view._ugFactory, self._portlet_counter,
+                 **kwargs);
         # Render the template.
         def portal_action_url(action, **kwargs):
             return (self._view.prefix

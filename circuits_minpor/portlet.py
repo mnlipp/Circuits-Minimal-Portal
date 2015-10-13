@@ -222,12 +222,11 @@ class Portlet(BaseComponent):
         __metaclass__ = ABCMeta
 
         @abstractmethod        
-        def make_generator(self, portlet):
+        def make_generator(self, portlet, session):
             """
             Invoked by the portlet to obtain its (portlet
             specific) URL generator from the portal.
-            """
-            return Portlet.URLGenerator()
+            """            
 
     def __init__(self, key_language="en", weight=0, *args, **kwargs):
         """
@@ -273,16 +272,17 @@ class Portlet(BaseComponent):
         """
         return Portlet.Description(self._handle, "Base Portlet")
     
-    def render(self, mime_type="text/html", 
+    def render(self, portal, mime_type="text/html", 
                mode=RenderMode.View, 
                window_state=WindowState.Normal, 
                locales=[], url_generator_factory=None, 
-               invocation_id=0, portal=None, **kwargs):
+               invocation_id=0, **kwargs):
         """
-        Render the portle, i.e. return its contribution to the
+        Render the portlet, i.e. return its contribution to the
         HTML content.
         """
-        url_generator = url_generator_factory.make_generator(self)
+        url_generator = url_generator_factory \
+            .make_generator(self, portal.session)
         return self.do_render(mime_type, mode, window_state, 
                               locales, url_generator, invocation_id,
                               portal, **kwargs)
