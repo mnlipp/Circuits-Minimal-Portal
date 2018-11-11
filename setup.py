@@ -55,6 +55,6 @@ setup(
                   'circuits_minpor.portlets': ['templates/*.properties', 
                                                'templates/*.pyhtml',
                                                'templates/themes/default/*']},
-    install_requires = ['Tenjin', 'rbtranslations', 'circuits-bricks==0.4',
-                        'circuits==3.1'],
+    install_requires = ['Tenjin', 'rbtranslations', 'circuits-bricks==0.4.4',
+                        'circuits==3.2'],
 )
